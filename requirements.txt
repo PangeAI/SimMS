@@ -1,0 +1,12 @@
+matchms>=0.24.0
+numba
+torch
+rdkit
+pooch
+h5py
+pandas
+tqdm
+pyyaml
+python-dotenv
+joblib
+pytest
