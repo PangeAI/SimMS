@@ -1,0 +1,72 @@
+[tool.poetry]
+name = "cudams"
+version = "0.0.1"
+description = "Faster MatchMS Cosine Greedy similarity on GPU"
+authors = ["Tornike Onoprishvili <tornikeonoprishvili@gmail.com>"]
+
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/tornikeo/cudams"
+keywords=[ "similarity measures",
+           "mass spectrometry",
+           "fuzzy matching",
+           "fuzzy search" ]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9"
+]
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.13"
+matchms = ">=0.24.0"
+numba = "^0.57.1"
+pooch = "1.8.1"
+tqdm = "^4.65.0"
+
+[tool.poetry.group.dev.dependencies]
+decorator = "^5.1.1"
+isort = "^5.12.0"
+pylint = "^2.17.5"
+prospector = {extras = ["with-pyroma"], version = "^1.10.2"}
+pytest = "^7.4.0"
+tbb = "^2021.12.0"
+pytest-cov = "^4.1.0"
+pytest-benchmark = {extras=["historgram"], version="^4.0.0"}
+yapf = "^0.40.1"
+testfixtures = "^7.1.0"
+twine = "^4.0.2"
+black = "^23.7.0"
+poetry-bumpversion = "^0.3.1"
+
+[tool.poetry.group.docs.dependencies]
+sphinxcontrib-apidoc = "^0.3.0"
+sphinx-rtd-theme = "^1.2.2"
+sphinx = "<7"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry_bumpversion.file."cudams/__version__.py"]
+
+[tool.isort]
+sections = "FUTURE,STDLIB,THIRDPARTY,FIRSTPARTY,LOCALFOLDER"
+no_lines_before = "FUTURE,STDLIB,THIRDPARTY,FIRSTPARTY,LOCALFOLDER"
+lines_after_imports = 2
+known_first_party = "cudams"
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "."
+]
+testpaths = [
+    "tests",
+    "integration-tests",
+]
