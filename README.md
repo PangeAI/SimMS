@@ -11,12 +11,12 @@
     </a>
   </td>
   <td>
-    <a target="_blank" href="https://colab.research.google.com/github/tornikeo/cudams/blob/main/notebooks/samples/upload_your_own_mgf.ipynb">
+    <a target="_blank" href="https://colab.research.google.com/github/PangeAI/cudams/blob/main/notebooks/samples/upload_your_own_mgf.ipynb">
       <img alt="Static Badge" src="https://img.shields.io/badge/colab-upload_your_mgf-blue?logo=googlecolab">
     </a>
   </td>
   <td>
-    <a target="_blank" href="https://colab.research.google.com/github/tornikeo/cudams/blob/main/notebooks/accuracy/accuracy_vs_match_limit.ipynb">
+    <a target="_blank" href="https://colab.research.google.com/github/PangeAI/cudams/blob/main/notebooks/accuracy/accuracy_vs_match_limit.ipynb">
       <img alt="Static Badge" src="https://img.shields.io/badge/colab-comparison_with_matchms-blue?logo=googlecolab">
     </a>
   </td>
@@ -39,7 +39,7 @@ Note: CudaCosineGreedy uses fp32 format, wherease MatchMS uses fp64, and this di
 
 ## Install
 ```bash
-pip install git+https://github.com/tornikeo/cudams
+pip install git+https://github.com/PangeAI/cudams
 ```
 
 Use with MatchMS:
@@ -72,7 +72,7 @@ scores.scores_by_query(queries[42], 'CudaCosineGreedy_score', sort=True)
 # Installation
 The **easiest way** to get started is to visit our [huggingface space](https://huggingface.co/spaces/TornikeO/cudams), which offers a simple UI, where you can upload a pair of MGF files and run similarity calculations there (we also offer some control over parameters). 
 
-Alternatively, you can use the <a target="_blank" href="https://colab.research.google.com/github/tornikeo/cudams/blob/main/notebooks/samples/colab_tutorial_pesticide.ipynb">colab notebook
+Alternatively, you can use the <a target="_blank" href="https://colab.research.google.com/github/PangeAI/cudams/blob/main/notebooks/samples/colab_tutorial_pesticide.ipynb">colab notebook
 </a>  that has everything ready for you.
 
 For local installations, we recommend using [`micromamba`](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html), it is much faster. 
@@ -90,7 +90,7 @@ conda install pytorch -c pytorch -c nvidia -y
 conda install numba -y
 
 # Install this repository
-pip install git+https://github.com/tornikeo/cudams
+pip install git+https://github.com/PangeAI/cudams
 ```
 
 ## Run in docker
@@ -98,7 +98,7 @@ pip install git+https://github.com/tornikeo/cudams
 The `pytorch/pytorch:2.2.1-cuda12.1-cudnn8-devel` has nearly everything you need. Once inside, do:
 
 ```
-pip install git+https://github.com/tornikeo/cudams
+pip install git+https://github.com/PangeAI/cudams
 ```
 
 ## Run on vast.ai
@@ -106,5 +106,5 @@ pip install git+https://github.com/tornikeo/cudams
 Use [this template](https://cloud.vast.ai/?ref_id=51575&template_id=f45f6048db515291bda978a34e908d09) as a starting point, once inside, simply do:
 
 ```
-pip install git+https://github.com/tornikeo/cudams
+pip install git+https://github.com/PangeAI/cudams
 ```
