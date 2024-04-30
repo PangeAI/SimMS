@@ -21,7 +21,7 @@ Code quality checks:
 
 CUDA-accelerated mass-spectrum similarity kernels
 
-<a target="_blank" href="https://colab.research.google.com/github/tornikeo/cudams/blob/main/notebooks/samples/colab_tutorial_pesticide.ipynb">
+<a target="_blank" href="https://colab.research.google.com/github/PangeAI/cudams/blob/main/notebooks/samples/colab_tutorial_pesticide.ipynb">
   <img alt="Static Badge" src="https://img.shields.io/badge/colab-quickstart-blue?logo=googlecolab">
 </a>
 
@@ -52,28 +52,28 @@ scores.scores_by_query(query[42], 'CudaCosineGreedy_score', sort=True)
 
 # Get started
 
-The **easiest way** to get started is to use the <a target="_blank" href="https://colab.research.google.com/github/tornikeo/cudams/blob/main/notebooks/samples/colab_tutorial_pesticide.ipynb">colab notebook
+The **easiest way** to get started is to use the <a target="_blank" href="https://colab.research.google.com/github/PangeAI/cudams/blob/main/notebooks/samples/colab_tutorial_pesticide.ipynb">colab notebook
 </a>  that has everything ready for you. Alternatively do any of the following:
 
 ## Run on Colab
 
 ### Colab samples:
 
-<p> <a target="_blank" href="https://colab.research.google.com/github/tornikeo/cudams/blob/main/notebooks/samples/upload_your_own_mgf.ipynb">
+<p> <a target="_blank" href="https://colab.research.google.com/github/PangeAI/cudams/blob/main/notebooks/samples/upload_your_own_mgf.ipynb">
   <img alt="Static Badge" src="https://img.shields.io/badge/colab-upload_your_mgf-blue?logo=googlecolab">
 </a> files and get pairwise similarities quickly.
 </p>
 
 <p>
 Run the
-<a target="_blank" href="https://colab.research.google.com/github/tornikeo/cudams/blob/main/notebooks/performance/default_params_on_colab_t4.ipynb">
+<a target="_blank" href="https://colab.research.google.com/github/PangeAI/cudams/blob/main/notebooks/performance/default_params_on_colab_t4.ipynb">
   <img alt="Static Badge" src="https://img.shields.io/badge/colab-speed_benchmark-blue?logo=googlecolab">
 </a>
 and replicate some of our performance results on free Colab GPU hardware.
 </p>
 
 <p>
-See how accuracy depends on match limit in <a target="_blank" href="https://colab.research.google.com/github/tornikeo/cudams/blob/main/notebooks/accuracy/accuracy_vs_match_limit.ipynb">
+See how accuracy depends on match limit in <a target="_blank" href="https://colab.research.google.com/github/PangeAI/cudams/blob/main/notebooks/accuracy/accuracy_vs_match_limit.ipynb">
   <img alt="Static Badge" src="https://img.shields.io/badge/colab-accuracy_vs_match_limit-blue?logo=googlecolab">
 </a>
 </p>
@@ -98,7 +98,7 @@ conda install numba -y
 pip install matchms[chemistry]
 
 # Install this repository
-pip install git+https://github.com/tornikeo/cudams
+pip install git+https://github.com/PangeAI/cudams
 ```
 
 ## Run in docker

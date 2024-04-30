@@ -257,12 +257,12 @@ def download(
     ]
 ) -> str:
     """
-    Downloads a set of sample spectra files from https://github.com/tornikeo/cudams/releases/tag/samples-0.1
+    Downloads a set of sample spectra files from https://github.com/PangeAI/cudams/releases/tag/samples-0.1
     Downloaded files are cached, and not re-downloaded after the initial call.
     """
     import pooch
     return pooch.retrieve(
-        url=f"https://github.com/tornikeo/cudams/releases/download/samples-0.1/{name}",
+        url=f"https://github.com/PangeAI/cudams/releases/download/samples-0.1/{name}",
         known_hash=None,
         progressbar=True,
     )

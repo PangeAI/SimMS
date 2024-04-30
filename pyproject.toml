@@ -2,11 +2,11 @@
 name = "cudams"
 version = "0.0.1"
 description = "Faster MatchMS Cosine Greedy similarity on GPU"
-authors = ["Tornike Onoprishvili <tornikeonoprishvili@gmail.com>"]
+authors = ["Tornike Onoprishvili <PangeAInoprishvili@gmail.com>"]
 
 license = "Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/tornikeo/cudams"
+repository = "https://github.com/PangeAI/cudams"
 keywords=[ "similarity measures",
            "mass spectrometry",
            "fuzzy matching",
