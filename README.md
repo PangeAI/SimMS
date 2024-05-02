@@ -37,7 +37,7 @@ Note: CudaCosineGreedy uses fp32 format, wherease MatchMS uses fp64, and this di
 
 # Quickstart
 
-Install:
+## Install
 ```bash
 pip install git+https://github.com/tornikeo/cudams
 ```
