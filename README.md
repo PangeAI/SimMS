@@ -47,18 +47,23 @@ Use with MatchMS:
 ```py
 from matchms import calculate_scores
 from matchms.importing import load_from_mgf
-from cudams.similarity import CudaCosineGreedy
+from cudams.utils import download
+from cudams.similarity import CudaCosineGreedy, \
+                              CudaModifiedCosine, \
+                              CudaFingerprintSimilarity
 
-references = load_from_mgf(...)
-queries = load_from_mgf(...)
+sample_file = download('pesticides.mgf')
+references = list(load_from_mgf(sample_file))
+queries = list(load_from_mgf(sample_file))
 
-kernel = CudaCosineGreedy()
+similarity_function = CudaCosineGreedy()
 
-scores = calculate_scores(
+scores = calculate_scores( 
   references=references,
   queries=queries,
-  similarity_function=kernel,
+  similarity_function=similarity_function, 
 )
+
 scores.scores_by_query(queries[42], 'CudaCosineGreedy_score', sort=True)
 ```
 
@@ -66,6 +71,8 @@ scores.scores_by_query(queries[42], 'CudaCosineGreedy_score', sort=True)
 
 - `CudaCosineGreedy`, equivalent to [CosineGreedy](https://matchms.readthedocs.io/en/latest/_modules/matchms/similarity/CosineGreedy.html)
 - `CudaFingerprintSimilarity`, equivalent to [FingerprintSimilarity](https://matchms.readthedocs.io/en/latest/_modules/matchms/similarity/FingerprintSimilarity.html) (`jaccard`, `cosine`, `dice`)
+- `CudaModifiedCosine`, equivalent to, you guessed it, [ModifiedCosine](https://matchms.readthedocs.io/en/latest/api/matchms.similarity.ModifiedCosine.html)
+
 - More coming soon - requests are welcome!
 
 
