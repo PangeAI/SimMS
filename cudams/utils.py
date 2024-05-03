@@ -262,7 +262,9 @@ def download(
     """
     import pooch
     return pooch.retrieve(
-        url=f"https://github.com/PangeAI/cudams/releases/download/samples-0.1/{name}",
+        # TODO: Before we fully migrate we still use old repo for file reference
+        # url=f"https://github.com/PangeAI/cudams/releases/download/samples-0.1/{name}",
+        url=f"https://github.com/tornikeo/cudams/releases/download/samples-0.1/{name}",
         known_hash=None,
         progressbar=True,
     )

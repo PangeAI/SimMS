@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Type
 import warnings
 import pytest
 from joblib import Memory
@@ -13,6 +14,19 @@ def get_expected_cosine_greedy_score(
     ) -> np.ndarray:
     from matchms.similarity import CosineGreedy
     return CosineGreedy(**kwargs).matrix(
+        references=references,
+        queries=queries,
+    )
+
+@memory.cache
+def get_expected_score(
+        method: Type,
+        references: tuple, 
+        queries: tuple,
+        **kwargs,
+    ) -> np.ndarray:
+    from matchms.similarity import CosineGreedy
+    return method(**kwargs).matrix(
         references=references,
         queries=queries,
     )

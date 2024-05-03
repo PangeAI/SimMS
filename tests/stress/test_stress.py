@@ -1,9 +1,11 @@
 import pytest
 import matchms
 import numpy as np
-from cudams.similarity import CudaCosineGreedy
+from typing import Type
+from matchms.similarity  import ModifiedCosine, CosineGreedy
+from cudams.similarity import CudaCosineGreedy, CudaModifiedCosine
 from matchms.filtering import reduce_to_number_of_peaks
-from ..utils import get_expected_cosine_greedy_score
+from ..utils import get_expected_cosine_greedy_score, get_expected_score
 from joblib import Memory
 
 cache = Memory('cache', verbose=False).cache
@@ -13,6 +15,11 @@ def trimmed_spectra(gnps, n_max_peaks):
     spectra = [reduce_to_number_of_peaks(sp, n_max=n_max_peaks) for sp in gnps]
     spectra = [sp for sp in spectra if sp is not None]
     return spectra
+
+@pytest.mark.parametrize('method, method_cu', [
+    [ModifiedCosine, CudaModifiedCosine],
+    [CosineGreedy, CudaCosineGreedy],
+])
 @pytest.mark.parametrize(
     'tolerance, batch_size, n_max_peaks, match_limit, mz_power, intensity_power', 
     [
@@ -27,6 +34,8 @@ def trimmed_spectra(gnps, n_max_peaks):
     ]
 )
 def test_stress(
+    method: Type, 
+    method_cu: Type,
     gnps: list,
     tolerance: float,
     batch_size: int,
@@ -38,11 +47,13 @@ def test_stress(
     spectra = trimmed_spectra(tuple(gnps[:batch_size * 2]), n_max_peaks)
     references, queries = spectra[:batch_size], spectra[batch_size:]
 
-    expected_score = get_expected_cosine_greedy_score(references, queries, 
-                                                      tolerance=tolerance, 
-                                                      mz_power=mz_power,
-                                                      intensity_power=intensity_power,)
-    kernel = CudaCosineGreedy(
+    # This is in a method since we use caching
+    expected_score = get_expected_score(
+        method, references, queries, 
+        tolerance=tolerance, mz_power=mz_power, intensity_power=intensity_power,
+    )
+
+    kernel = method_cu(
         mz_power=mz_power,
         intensity_power=intensity_power,
         tolerance=tolerance,

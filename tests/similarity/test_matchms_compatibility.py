@@ -4,31 +4,33 @@ import numpy as np
 import pytest
 from matchms import Scores, Spectrum, calculate_scores
 from matchms.similarity import (BaseSimilarity, CosineGreedy,
-                                FingerprintSimilarity)
-from cudams.similarity import CudaCosineGreedy, CudaFingerprintSimilarity
+                                FingerprintSimilarity, ModifiedCosine)
+from cudams.similarity import CudaCosineGreedy, CudaFingerprintSimilarity, \
+                                CudaModifiedCosine
 from ..builder_Spectrum import SpectrumBuilder
 from joblib import Memory
 
 
 memory = Memory(location="cache")
 
-def equality_function_cosine_greedy(scores: Scores, scores_cu: Scores):
-    score = scores[f"CosineGreedy_score"]
-    score_cu = scores_cu[f"CudaCosineGreedy_score"]
-    matches = scores["CosineGreedy_matches"]
-    matches_cu = scores_cu["CudaCosineGreedy_matches"]
-    not_ovfl = 1 - scores_cu["CudaCosineGreedy_overflow"]
+def equality_function(prefix:str):
+    def equality(scores: Scores, scores_cu: Scores):
+        score = scores[f"{prefix}_score"]
+        score_cu = scores_cu[f"Cuda{prefix}_score"]
+        matches = scores[f"{prefix}_matches"]
+        matches_cu = scores_cu[f"Cuda{prefix}_matches"]
+        not_ovfl = 1 - scores_cu[f"Cuda{prefix}_overflow"]
 
-    # We allow only overflowed values to be different (don't count toward acc)
-    acc = np.isclose(matches * not_ovfl, matches_cu * not_ovfl, equal_nan=True)
-    assert acc.mean() == 1
+        # We allow only overflowed values to be different (don't count toward acc)
+        acc = np.isclose(matches * not_ovfl, matches_cu * not_ovfl, equal_nan=True)
+        assert acc.mean() == 1
 
-    acc = np.isclose(score * not_ovfl, score_cu * not_ovfl, equal_nan=True)
-    assert acc.mean() == 1
+        acc = np.isclose(score * not_ovfl, score_cu * not_ovfl, equal_nan=True)
+        assert acc.mean() == 1
 
-    # We allow only few overflows
-    assert not_ovfl.mean() >= 0.99
-
+        # We allow only few overflows
+        assert not_ovfl.mean() >= 0.99
+    return equality
 
 def equality_function_fingerprint(
     scores: Scores,
@@ -40,6 +42,9 @@ def equality_function_fingerprint(
 @pytest.mark.parametrize(
     "similarity_function, args, cuda_similarity_function, cu_args, equality_function",
     [
+
+        (CosineGreedy, (), CudaCosineGreedy, (), equality_function('CosineGreedy')),
+        (ModifiedCosine, (), CudaModifiedCosine, (), equality_function('ModifiedCosine')),
         (
             FingerprintSimilarity,
             ("jaccard",),
@@ -61,7 +66,6 @@ def equality_function_fingerprint(
             ("dice",),
             equality_function_fingerprint,
         ),
-        (CosineGreedy, (), CudaCosineGreedy, (), equality_function_cosine_greedy),
     ],
 )
 def test_compatibility(
