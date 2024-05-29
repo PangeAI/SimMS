@@ -38,4 +38,4 @@ jobs:
     - name: Test with pytest
       # enable cudasim since github will never have gpu vms for this
       run: |
-        NUMBA_ENABLE_CUDASIM=1 GITHUB_WORKFLOW=1 pytest
+        NUMBA_ENABLE_CUDASIM=1 pytest -m github_ci

@@ -15,7 +15,7 @@ def compute_expected_score(spectrum_1, spectrum_2, matches):
         peak_pairs_multiplied += spec1[match[0]] * spec2[match[1]]
     return peak_pairs_multiplied / np.sqrt(np.sum(spec1 ** 2) * np.sum(spec2 ** 2))
 
-
+@pytest.mark.github_ci
 def test_modified_cosine_without_precursor_mz():
     """Test without precursor-m/z. Should raise assertion error."""
     mz = np.array([100, 150, 200, 300, 500, 510, 1100], dtype="float")
@@ -26,7 +26,7 @@ def test_modified_cosine_without_precursor_mz():
 
     norm_spectrum_1 = normalize_intensities(spectrum_1)
     norm_spectrum_2 = normalize_intensities(spectrum_2)
-    modified_cosine = CudaModifiedCosine()
+    modified_cosine = CudaModifiedCosine(batch_size=2)
 
     with pytest.raises(AssertionError) as msg:
         modified_cosine.pair(norm_spectrum_1, norm_spectrum_2)
@@ -62,6 +62,7 @@ def test_modified_cosine_without_precursor_mz():
         None, (1000.0, 1010.0), []
     ]
 ])
+@pytest.mark.github_ci
 def test_modified_cosine_with_mass_shift(peaks, tolerance, masses, expected_matches):
     """Test modified cosine on two spectra with mass shift."""
     builder = SpectrumBuilder()
@@ -70,17 +71,19 @@ def test_modified_cosine_with_mass_shift(peaks, tolerance, masses, expected_matc
 
     norm_spectrum_1 = normalize_intensities(spectrum_1)
     norm_spectrum_2 = normalize_intensities(spectrum_2)
+    
     if tolerance is None:
-        modified_cosine = CudaModifiedCosine()
+        modified_cosine = CudaModifiedCosine(batch_size=4)
     else:
-        modified_cosine = CudaModifiedCosine(tolerance=tolerance)
+        modified_cosine = CudaModifiedCosine(batch_size=4, 
+                                             tolerance=tolerance)
 
     score = modified_cosine.pair(norm_spectrum_1, norm_spectrum_2)
     expected_score = compute_expected_score(norm_spectrum_1, norm_spectrum_2, expected_matches)
     assert score["score"] == pytest.approx(expected_score, 0.0001), "Expected different cosine score."
     assert score["matches"] == len(expected_matches), "Expected differnt number of matching peaks."
 
-
+@pytest.mark.github_ci
 def test_modified_cosine_order_of_input_spectrums():
     """Test modified cosine on two spectra in changing order."""
     spectrum_1 = Spectrum(mz=np.array([100, 150, 200, 300, 500, 510, 1100], dtype="float"),
@@ -93,14 +96,14 @@ def test_modified_cosine_order_of_input_spectrums():
 
     norm_spectrum_1 = normalize_intensities(spectrum_1)
     norm_spectrum_2 = normalize_intensities(spectrum_2)
-    modified_cosine = CudaModifiedCosine(tolerance=2.0)
+    modified_cosine = CudaModifiedCosine(batch_size=2, tolerance=2.0)
     score_1_2 = modified_cosine.pair(norm_spectrum_1, norm_spectrum_2)
     score_2_1 = modified_cosine.pair(norm_spectrum_2, norm_spectrum_1)
 
     assert score_1_2["score"] == score_2_1["score"], "Expected that the order of the arguments would not matter."
     assert score_1_2 == score_2_1, "Expected that the order of the arguments would not matter."
 
-
+@pytest.mark.github_ci
 def test_modified_cosine_precursor_mz_as_invalid_string():
     """Test modified cosine on two spectra with precursor_mz given as string."""
     spectrum_1 = Spectrum(mz=np.array([100, 200, 300], dtype="float"),
@@ -113,14 +116,14 @@ def test_modified_cosine_precursor_mz_as_invalid_string():
 
     norm_spectrum_1 = normalize_intensities(spectrum_1)
     norm_spectrum_2 = normalize_intensities(spectrum_2)
-    modified_cosine = CudaModifiedCosine(tolerance=1.0)
+    modified_cosine = CudaModifiedCosine(batch_size=2, tolerance=1.0)
     with pytest.raises(AssertionError) as msg:
         _ = modified_cosine.pair(norm_spectrum_1, norm_spectrum_2)
 
     expected_message = "Precursor_mz missing. Apply 'add_precursor_mz' filter first."
     assert str(msg.value) == expected_message
 
-
+@pytest.mark.github_ci
 def test_modified_cosine_precursor_mz_as_string(caplog):
     """Test modified cosine on two spectra with precursor_mz given as string."""
     spectrum_1 = Spectrum(mz=np.array([100, 200, 300], dtype="float"),
@@ -135,7 +138,7 @@ def test_modified_cosine_precursor_mz_as_string(caplog):
 
     norm_spectrum_1 = normalize_intensities(spectrum_1)
     norm_spectrum_2 = normalize_intensities(spectrum_2)
-    modified_cosine = CudaModifiedCosine(tolerance=1.0)
+    modified_cosine = CudaModifiedCosine(batch_size=2, tolerance=1.0)
     score = modified_cosine.pair(norm_spectrum_1, norm_spectrum_2)
 
     assert score["score"] == pytest.approx(0.0, 1e-5), "Expected different modified cosine score."

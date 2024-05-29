@@ -325,10 +325,7 @@ class CudaModifiedCosine(BaseSimilarity):
                 )
                 out = cuda.as_cuda_array(out)
 
-                # Start timer and execute kernel
-                timer.start()
                 self.kernel(rspec, qspec, lens, meta, out)
-                timer.stop()
 
                 # Convert output to tensor
                 out = torch.as_tensor(out)

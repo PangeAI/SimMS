@@ -9,6 +9,7 @@ from cudams.similarity import CudaFingerprintSimilarity
     "test_method, expected_score",
     [("cosine", 0.6761234), ("jaccard", 0.5), ("dice", 2 / 3)],
 )
+@pytest.mark.github_ci
 def test_fingerprint_similarity_pair_calculations(test_method, expected_score):
     """Test cosine score pair with two fingerprint."""
     fingerprint1 = np.array([1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0])
@@ -33,6 +34,7 @@ def test_fingerprint_similarity_pair_calculations(test_method, expected_score):
 
 
 @pytest.mark.parametrize("test_method", ["cosine", "jaccard", "dice"])
+@pytest.mark.github_ci
 def test_fingerprint_similarity_parallel_empty_fingerprint(test_method):
     """Test score matrix with empty fingerprint using the provided methods."""
     fingerprint1 = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
@@ -66,6 +68,7 @@ def test_fingerprint_similarity_parallel_empty_fingerprint(test_method):
         ("dice", 0.83333333, "numpy", 0),
     ],
 )
+@pytest.mark.github_ci
 def test_fingerprint_similarity_parallel(
     test_method, expected_score, array_type, set_empty
 ):
@@ -111,7 +114,7 @@ def test_fingerprint_similarity_parallel(
         score_matrix, expected_matrix, equal_nan=True
     ), "Expected different values."
 
-
+@pytest.mark.github_ci
 def test_fingerprint_similarity_with_scores_sorting():
     """Test if score works with Scores.scores_by_query and sorting."""
     spectrum0 = Spectrum(

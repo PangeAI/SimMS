@@ -172,3 +172,4 @@ notebooks/figures/scratchpad.ipynb
 .benchmarks/
 data/
 notebooks/prototyping
+test.sh

@@ -90,6 +90,7 @@ def compute_expected_score(mz_power, intensity_power, spectrum_1, spectrum_2, ma
         ],
     ],
 )
+@pytest.mark.github_ci
 def test_cosine_greedy_pair(
     peaks, tolerance, mz_power, intensity_power, expected_matches
 ):
@@ -117,6 +118,7 @@ def test_cosine_greedy_pair(
     ), "Expected different number of matching peaks."
 
 @pytest.mark.parametrize("symmetric", [[True], [False]])
+@pytest.mark.github_ci
 def test_cosine_greedy_matrix(symmetric):
     builder = SpectrumBuilder()
     spectrum_1 = (

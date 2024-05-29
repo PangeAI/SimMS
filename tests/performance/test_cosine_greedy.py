@@ -38,8 +38,7 @@ def test_performance(
                               match_limit=match_limit, 
                               sparse_threshold=sparse_threshold,
                               verbose=False)
-    # Warm-up
-    # kernel.matrix(gnps[:4], gnps[:4])
+    kernel.matrix(gnps[:4], gnps[:4])
     with Timer() as t:
         kernel.matrix(
             gnps[:batch_size],

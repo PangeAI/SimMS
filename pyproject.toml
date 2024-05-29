@@ -70,3 +70,6 @@ testpaths = [
     "tests",
     "integration-tests",
 ]
+markers = [
+    "github_ci: marks tests as lightweight-enough to run on a CPU as a github CI",
+]

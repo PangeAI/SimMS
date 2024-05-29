@@ -257,8 +257,6 @@ def download(
     Downloads a set of sample spectra files from https://github.com/PangeAI/cudams/releases/tag/samples-0.1
     Downloaded files are cached, and not re-downloaded after the initial call.
     """
-    import pkg_resources
-    my_version = pkg_resources.get_('my-package-name').version
     import pooch
     return pooch.retrieve(
         # TODO: Before we fully migrate we still use old repo for file reference
