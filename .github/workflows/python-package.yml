@@ -5,9 +5,9 @@ name: Python package
 
 on:
   push:
-    branches: [ "main", "dev" ]
+    branches: [ "*" ]
   pull_request:
-    branches: [ "main", "dev" ]
+    branches: [ "*" ]
 
 jobs:
   build:
@@ -36,6 +36,5 @@ jobs:
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
-      # enable cudasim since github will never have gpu vms for this
       run: |
         NUMBA_ENABLE_CUDASIM=1 pytest -m github_ci

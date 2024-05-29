@@ -29,6 +29,7 @@ matchms = ">=0.24.0"
 numba = "^0.57.1"
 pooch = "1.8.1"
 tqdm = "^4.65.0"
+joblib = "^1.3.2"
 
 [tool.poetry.group.dev.dependencies]
 decorator = "^5.1.1"
