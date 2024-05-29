@@ -1,13 +1,8 @@
-import math
+"""
+Defines CUDA kernels written in Numba API. 
+"""
 import warnings
-import numba
-import numpy as np
-import torch
-from matchms.similarity.spectrum_similarity_functions import (
-    collect_peak_pairs, score_best_matches)
-from numba import cuda, pndindex, prange, types
-from torch import Tensor
-
+from numba import cuda, types
 
 def cosine_greedy_kernel(
     tolerance: float = 0.1,
@@ -18,7 +13,7 @@ def cosine_greedy_kernel(
     batch_size: int = 2048,
     n_max_peaks: int = 2048,
     is_symmetric: bool = False,
-) -> callable:
+):
     """
     Compiles and returns a CUDA kernel function for calculating cosine similarity scores between spectra.
 
@@ -74,34 +69,34 @@ def cosine_greedy_kernel(
         Parameters:
         -----------
         rspec : cuda.devicearray
-            Array containing reference spectra data.
+            All reference spectra. Float tensor. 
+            Shape [2, batch_size, n_max_peaks]. Zero-padded, when spectra are smaller than n_max_peaks.
+            Stores mz (0th slice), and intensity (1st slice).
         qspec : cuda.devicearray
-            Array containing query spectra data.
+            Same structure as rspec.
         lens : cuda.devicearray
-            Array containing lengths of spectra.
+            Number of peaks in both spectra batches. Integer tensor. Shape [2, batch_size]. Zero padded, when number of spectra are not divisible by
+            batch size and we are processing the edge-batches.
         norms : cuda.devicearray
-            Array containing pre-calculated score norms of spectra.
+            Contains a pre-computed norm for both spectra batches. Float tensor. Shape [2, batch_size]. 
         out : cuda.devicearray
-            Array for storing similarity scores.
+            Stores results. Float tensor. Shape [batch_size, batch_size, 3]. 
+            The last dimention (3) contains: score, matches, overflow. 
 
-        Notes:
-        ------
         The kernel is designed to efficiently compute cosine similarity scores
-        between reference and query spectra using CUDA parallelization.
+        between reference and query spectra by relying on CUDA parallelization.
 
         It performs the following steps:
-        ~~1. Compute the norms of the reference and query spectra.~~ This step is now done outside of kernel.
         1. Find potential peak matches between the spectra based on m/z tolerance.
-        2. Sort matches based on cosine product value.
-        3. Accumulate cosine score, while discarding duplicate peaks.
+        2. Sort matched peaks based on cosine product value.
+        3. Accumulate unnormalized cosine score while discarding duplicate peaks, beginning with the largest pair.
+        4. Divide unnormalized score by the pre-computed spectra norm.
+
         """
         ## PREAMBLE:
+
         # Get global indices
         i, j = cuda.grid(2)
-        thread_i = cuda.threadIdx.x
-        thread_j = cuda.threadIdx.y
-        block_size_x = cuda.blockDim.x
-        block_size_y = cuda.blockDim.y
         
         # Check we aren't out of the max possible grid size
         if i >= R or j >= Q:
@@ -112,35 +107,44 @@ def cosine_greedy_kernel(
         out[1, i, j] = 0
         out[2, i, j] = 0
 
-        # Get actual length of R
+        # Get actual number of peaks in R
         rleni = lens[0, i]
         qlenj = lens[1, j]
         
+        # If either R or Q spectra are empty, return
         if rleni == 0 or qlenj == 0:
             return
         
-        # Norms are pre-calculated, and passed into the kernel as an arg
+        # Read pre-calculated norms for R and Q, multiply to get the score norm
         score_norm = norms[0, i] * norms[1, j]
 
-        # We unpack mz and int from arrays
-        rmz = rspec[0] 
-        rint = rspec[1]
-        spec1_mz = rmz[i]
-        spec1_int = rint[i]
+        # Unpack R into m/z and intensity sets 
+        rmz = rspec[0] # rmz is [batch_size, n_max_peaks]
+        rint = rspec[1] # rint is [batch_size, n_max_peaks]
 
+        # Read current thread's reference spectrum
+        spec1_mz = rmz[i] # spec1_mz is [n_max_peaks]
+        spec1_int = rint[i] # spec1_int is [n_max_peaks]
+
+        # Similar steps for reading this thread's Query
         qmz = qspec[0]
         qint = qspec[1]
         spec2_mz = qmz[j]
         spec2_int = qint[j]
 
-        spec1_mz_sh = spec1_mz # `spec1_mz_sh` is named so because at some point I experimented with R residing in shared-mem. It didn't work too well.
-        spec1_int_sh = spec1_int
+        #### PART 1: Collect peak pairs  ####
+        # Allocate matches and values arrays in GPU global memory. 
+        # These will store peak indices (r_idx, q_idx) and peak contributions (float) respectively
 
-        #### PART 1: Find matches ####
-        # On GPU global memory, we allocate temporary arrays for values and matches
         matches = cuda.local.array(MATCH_LIMIT, types.int32)
         values = cuda.local.array(MATCH_LIMIT, types.float32)
+
+        # We follow the matchms.similarity.spectrum_similarity_functions.collect_peak_pairs as closely as possible
         
+        ### FIND MATCHES 
+        # The following is equivalent to the `matchms.similarity.spectrum_similarity_functions.find_matches`
+        # We do a compare all peaks in both spectra, and keep track of peaks within the given tolerance.
+        # We store first `match_limit` number of matches and peak contributions (values) into `matches` and `values` arrays.
         lowest_idx = types.int32(0)
         num_match = types.int32(0)
         overflow = types.boolean(False)
@@ -148,8 +152,8 @@ def cosine_greedy_kernel(
         for peak1_idx in range(rleni):
             if overflow:
                 break
-            mz_r = spec1_mz_sh[peak1_idx]
-            int_r = spec1_int_sh[peak1_idx]
+            mz_r = spec1_mz[peak1_idx]
+            int_r = spec1_int[peak1_idx]
             for peak2_idx in range(lowest_idx, qlenj):
                 if overflow:
                     break
@@ -161,31 +165,33 @@ def cosine_greedy_kernel(
                 else:
                     if not overflow:
                         int_q = spec2_int[peak2_idx]
-                        # Binary trick! We pack two 16bit ints in 32bit int to use less memory
-                        # since we know that largest imaginable peak index can fit in 13 bits
+                        # Binary trick! 
+                        # since we know that the largest imaginable peak index can fit in 13 bits 
+                        # We pack two 16bit ints in 32bit int to use less memory
                         matches[num_match] = (peak1_idx << 16) | peak2_idx
                         values[num_match] = (mz_r ** mz_power * int_r ** int_power) * (mz_q ** mz_power * int_q ** int_power)
                         num_match += 1
+                        # Once we have filled the entire allocated `matches` array, we stop adding more. We call this the `overflow`
                         overflow = num_match >= MATCH_LIMIT  # This is the errorcode for overflow
 
+        # The overflow gets returned as the 3rd output for this RxQ comparison.
         if overflow:
             out[2, i, j] = 1.0
         
+        # In case we didn't get any matches, we return. We already have set 0 as the default output above.
         if num_match == 0:
             return
 
-        # Debug checkpoint
-        # out[i, j, 0] = score_norm
-        # out[i, j, 1] = num_match
-        # return
-
-        #### PART: 2 ####
-        # We use as non-recursive mergesort to order matches by the cosine product
-        # We need an O(MATCH_LIMIT) auxiliary memory for this.
-
+        #### PART 2: Sort peaks from largest to smallest ####
+        # We use a non-recursive mergesort in order to sort matches by the peak contributions (values)
+        # We require a 2 additional arrays to store the sorting intermediate results.
         temp_matches = cuda.local.array(MATCH_LIMIT, types.int32)
         temp_values = cuda.local.array(MATCH_LIMIT, types.float32)
 
+        # k is an expanding window of sorting. We initially sort single (size-1) elements,
+        # At this point, all 2-tuples in the array are themselves sorted. We then double the sorting window (to 2)
+        # Since all 2-tuples are themselves sorted, we efficiently create size-4 sorted tuples from each.
+        # This doubling continues, until all elements are in order. This takes O(nlog2(n)) time, where n is match_limit.
         k = types.int32(1)
         while k < num_match:
             for left in range(0, num_match - k, k * 2):
@@ -218,8 +224,9 @@ def cosine_greedy_kernel(
                     values[m] = temp_values[m]; 
             k *= 2
 
-        #### PART: 3 ####
-        # Accumulate and deduplicate matches from largest to smallest ####
+        #### PART 3: Sum unnormalized peak contributions, and remove duplicates ####
+        # Having peak matches sorted we can start summing all peak contributions to the unnormalized score, from the largest to the smallest.
+        # To avoid duplicates, we create two boolean arrays that keep track of used matches.
         used_r = cuda.local.array(N_MAX_PEAKS, types.boolean)
         used_q = cuda.local.array(N_MAX_PEAKS, types.boolean)
         for m in range(N_MAX_PEAKS):
@@ -228,21 +235,27 @@ def cosine_greedy_kernel(
 
         used_matches = 0
         score = 0.0
+
         for m in range(num_match):
-            # Here we undo the binary trick
+            # The binary trick is undone to get both peak indices back
             c = matches[m]
             peak1_idx = c >> 16
             peak2_idx = c & 0x0000_FFFF
+
             if (not used_r[peak1_idx]) and (not used_q[peak2_idx]):
                 used_r[peak1_idx] = True
                 used_q[peak2_idx] = True
                 score += values[m];
                 used_matches += 1
 
-        #### ALTERNATIVE PART 2-3: ALTENRNATIVE SORT+ACCUMULATE PATHWAY ####
-        # This pathway is much faster when matches and average scores are *extremely* rare
-        # TODO: 
-        # In the future, we should compile both kernels, compare perfs and use fastest kernel.
+        # We finally normalize and return the score
+        out[0, i, j] = score / score_norm
+        out[1, i, j] = used_matches
+
+        #### Sorting + Accumulation path 2-3: ALTENRNATIVE SORT+ACCUMULATE PATHWAY ####
+        # This pathway could be faster when matches and average scores are very rare.
+        # One would compile and time both kernels, and retain the fastest
+
         # score = types.float32(0.0)
         # used_matches = types.uint16(0)
         # for _ in range(0, num_match):
@@ -278,9 +291,6 @@ def cosine_greedy_kernel(
         #     else:
         #         break
 
-        out[0, i, j] = score / score_norm
-        out[1, i, j] = used_matches
-
     def kernel(
         rspec_cu: cuda.devicearray,
         qspec_cu: cuda.devicearray,
@@ -315,7 +325,6 @@ def cosine_greedy_kernel(
             out_cu,
         )
     return kernel
-
 
 def modified_cosine_kernel(
     tolerance: float = 0.1,

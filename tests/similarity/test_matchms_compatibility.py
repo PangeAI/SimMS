@@ -82,7 +82,6 @@ def test_compatibility(
         references=references,
         queries=queries,
         similarity_function=kernel,
-        is_symmetric=True,
     ).to_array()
 
     cuda_kernel = CudaSimilarityClass(*cu_args, verbose=True, batch_size=4)
