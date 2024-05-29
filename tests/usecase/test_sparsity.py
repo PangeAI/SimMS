@@ -8,10 +8,8 @@ from numba import cuda
 from tqdm import tqdm
 from cudams.similarity import CudaCosineGreedy
 from cudams.utils import download
-from pathlib import Path
-from matchms import calculate_scores
-from cudams.utils import download
 from ..utils import get_expected_cosine_greedy_score
+
 
 def test_sparse_calculate_scores(
         gnps: list,

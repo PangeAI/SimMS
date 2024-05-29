@@ -1,5 +1,5 @@
+from typing import List, Literal, Union
 import numpy as np
-from typing import List, Union, Literal
 from matchms import Spectrum
 from matchms.similarity.BaseSimilarity import BaseSimilarity
 from sparsestack import StackedSparseArray

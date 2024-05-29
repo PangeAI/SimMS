@@ -4,6 +4,7 @@ import pytest
 from cudams.similarity import CudaCosineGreedy
 from cudams.utils import Timer
 
+
 @pytest.mark.parametrize(
     'batch_size, match_limit, n_max_peaks, array_type, sparse_threshold', 
     [

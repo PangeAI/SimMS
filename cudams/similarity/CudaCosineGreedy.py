@@ -100,7 +100,6 @@ class CudaCosineGreedy(BaseSimilarity):
         verbose : bool, optional
             Verbosity flag, by default False.
         """
-
         # Initialize parameters
         self.tolerance = tolerance
         self.mz_power = mz_power

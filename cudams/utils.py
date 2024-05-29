@@ -1,6 +1,7 @@
 import contextlib
 import io
 import json
+import logging
 import shutil
 import sys
 import warnings
@@ -16,7 +17,7 @@ from matchms.filtering import (add_losses, normalize_intensities,
                                select_by_relative_intensity)
 from numba import cuda
 from tqdm import tqdm
-import logging
+
 
 logger = logging.getLogger("cudams")
 

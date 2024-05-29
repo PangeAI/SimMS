@@ -9,6 +9,7 @@ from cudams.similarity import (CudaCosineGreedy, CudaFingerprintSimilarity,
                                CudaModifiedCosine)
 from ..builder_Spectrum import SpectrumBuilder
 
+
 memory = Memory(location="cache")
 
 def equality_function(prefix:str):
@@ -38,7 +39,7 @@ def equality_function_fingerprint(
 
 
 @pytest.mark.parametrize(
-    "similarity_function, args, cuda_similarity_function, cu_args, equality_function",
+    "SimilarityClass, args, CudaSimilarityClass, cu_args, equality_function",
     [
 
         (CosineGreedy, (), CudaCosineGreedy, (), equality_function('CosineGreedy')),
@@ -68,26 +69,27 @@ def equality_function_fingerprint(
 )
 def test_compatibility(
     gnps_with_fingerprint: List[Spectrum],
-    similarity_function: BaseSimilarity,
+    SimilarityClass: BaseSimilarity,
     args: tuple,
-    cuda_similarity_function: BaseSimilarity,
+    CudaSimilarityClass: BaseSimilarity,
     cu_args: tuple,
     equality_function: callable,
 ):
     references, queries = gnps_with_fingerprint[:256], gnps_with_fingerprint[:256]
-    similarity_function = similarity_function(*args)
+
+    kernel = SimilarityClass(*args)
     scores = calculate_scores(
         references=references,
         queries=queries,
-        similarity_function=similarity_function,
+        similarity_function=kernel,
         is_symmetric=True,
     ).to_array()
-    cuda_similarity_function = cuda_similarity_function(*cu_args)
 
+    cuda_kernel = CudaSimilarityClass(*cu_args, verbose=True, batch_size=4)
     scores_cu = calculate_scores(
         references=references,
         queries=queries,
-        similarity_function=cuda_similarity_function,
+        similarity_function=cuda_kernel,
     ).to_array()
 
     equality_function(scores, scores_cu)

@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from matchms.filtering.SpectrumProcessor import SpectrumProcessor
 from .__version__ import __version__
 
+
 # Patch cuda.pinned and as_cuda_array before https://github.com/numba/numba/pull/9458 gets merged
 if os.getenv("NUMBA_ENABLE_CUDASIM") == "1":
     from numba import cuda

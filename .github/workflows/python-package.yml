@@ -37,4 +37,4 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        NUMBA_ENABLE_CUDASIM=1 pytest -m github_ci
+        NUMBA_CUDA_LOW_OCCUPANCY_WARNINGS=0 NUMBA_ENABLE_CUDASIM=1 pytest -m github_ci

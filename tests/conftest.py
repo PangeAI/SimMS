@@ -2,6 +2,7 @@ import warnings
 import pytest
 from joblib import Memory
 
+
 memory = Memory(location="cache")
 
 def pytest_configure(config):
