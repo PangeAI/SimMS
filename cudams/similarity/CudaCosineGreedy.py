@@ -1,7 +1,7 @@
 import warnings
 from itertools import product
 from pathlib import Path
-from typing import List, Literal
+from typing import List, Literal, Union
 import numpy as np
 import torch
 from matchms import Spectrum
@@ -224,7 +224,7 @@ class CudaCosineGreedy(BaseSimilarity):
         queries: List[Spectrum],
         array_type: Literal["numpy", "sparse"] = "numpy",
         is_symmetric: bool = False,
-    ) -> np.ndarray | StackedSparseArray:
+    ) -> Union[np.ndarray, StackedSparseArray]:
         """
         Calculate a matrix of similarity scores between reference and query spectra.
 
