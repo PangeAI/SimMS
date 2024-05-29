@@ -1,8 +1,7 @@
 from pathlib import Path
-import pytest
 import numpy as np
+import pytest
 from cudams.similarity import CudaCosineGreedy
-
 
 @pytest.mark.parametrize(
     'batch_size, match_limit, n_max_peaks, array_type, sparse_threshold', 

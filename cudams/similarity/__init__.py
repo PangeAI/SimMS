@@ -1,5 +1,6 @@
 from .CudaCosineGreedy import CudaCosineGreedy
-from .CudaModifiedCosine import CudaModifiedCosine
 from .CudaFingerprintSimilarity import CudaFingerprintSimilarity
+from .CudaModifiedCosine import CudaModifiedCosine
+
 
 __all__ = ["CudaCosineGreedy", "CudaFingerprintSimilarity", "CudaModifiedCosine"]

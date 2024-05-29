@@ -1,16 +1,12 @@
 import contextlib
 import io
 import json
-import re
 import shutil
-import subprocess
 import sys
 import warnings
-from contextlib import contextmanager
 from itertools import product
 from pathlib import Path
 from typing import Iterable, List, Literal, Optional
-
 import numpy as np
 import pandas as pd
 from matchms import Spectrum
@@ -18,13 +14,16 @@ from matchms.filtering import (add_losses, normalize_intensities,
                                reduce_to_number_of_peaks,
                                require_minimum_number_of_peaks, select_by_mz,
                                select_by_relative_intensity)
-from tqdm import tqdm
 from numba import cuda
+from tqdm import tqdm
+import logging
+
+logger = logging.getLogger("cudams")
 
 def argbatch(lst: list, batch_size: int) -> Iterable[tuple[int, int]]:
     """
-    Given list, return `batch_size`-d chunks from it but only as indexing arguments!
-    Can be used as follows:
+    Given a list, return batches of indices, of size `batch_size`. It can be used as follows:
+
     ```
     for bstart, bend in argbatch(references, 2048):
         rbatch = references[bstart:bend]
@@ -34,8 +33,8 @@ def argbatch(lst: list, batch_size: int) -> Iterable[tuple[int, int]]:
     for i in range(0, len(lst), batch_size):
         yield i, i + batch_size
 
-
 def mkdir(p: Path, clean=False) -> Path:
+    "Modified pathlib mkdir, made a bit convenient to use."
     p = Path(p)
     if clean and p.is_dir() and p.exists():
         shutil.rmtree(p, ignore_errors=True)
@@ -49,7 +48,6 @@ def mute_stdout():
     sys.stdout = io.BytesIO()
     yield
     sys.stdout = save_stdout
-
 
 def ignore_performance_warnings():
     from numba.core.errors import NumbaPerformanceWarning
@@ -253,13 +251,14 @@ def download(
         "pesticides.mgf",
         "GNPS-MSMLS.mgf",
         "MASSBANK.mgf",
-        ""
     ]
 ) -> str:
     """
     Downloads a set of sample spectra files from https://github.com/PangeAI/cudams/releases/tag/samples-0.1
     Downloaded files are cached, and not re-downloaded after the initial call.
     """
+    import pkg_resources
+    my_version = pkg_resources.get_('my-package-name').version
     import pooch
     return pooch.retrieve(
         # TODO: Before we fully migrate we still use old repo for file reference

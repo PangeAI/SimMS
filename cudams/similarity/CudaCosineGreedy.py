@@ -7,10 +7,9 @@ import torch
 from matchms import Spectrum
 from matchms.similarity.BaseSimilarity import BaseSimilarity
 from numba import cuda
-from ..utils import CudaTimer
-from tqdm import tqdm
 from sparsestack import StackedSparseArray
-from ..utils import argbatch
+from tqdm import tqdm
+from ..utils import CudaTimer, argbatch
 from .spectrum_similarity_functions import cosine_greedy_kernel
 
 

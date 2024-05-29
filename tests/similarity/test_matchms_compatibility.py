@@ -1,15 +1,13 @@
 from typing import List
-
 import numpy as np
 import pytest
+from joblib import Memory
 from matchms import Scores, Spectrum, calculate_scores
 from matchms.similarity import (BaseSimilarity, CosineGreedy,
                                 FingerprintSimilarity, ModifiedCosine)
-from cudams.similarity import CudaCosineGreedy, CudaFingerprintSimilarity, \
-                                CudaModifiedCosine
+from cudams.similarity import (CudaCosineGreedy, CudaFingerprintSimilarity,
+                               CudaModifiedCosine)
 from ..builder_Spectrum import SpectrumBuilder
-from joblib import Memory
-
 
 memory = Memory(location="cache")
 

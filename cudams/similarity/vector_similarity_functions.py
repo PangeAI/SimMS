@@ -1,10 +1,10 @@
 import math
-
 import numba
 import numpy as np
 import torch
 from numba import cuda, types
 from torch import Tensor
+
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 

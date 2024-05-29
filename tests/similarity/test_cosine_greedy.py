@@ -1,10 +1,7 @@
 import numpy as np
 import pytest
-
 from cudams.similarity import CudaCosineGreedy
-
 from ..builder_Spectrum import SpectrumBuilder
-
 
 def compute_expected_score(mz_power, intensity_power, spectrum_1, spectrum_2, matches):
     intensity1 = spectrum_1.peaks.intensities

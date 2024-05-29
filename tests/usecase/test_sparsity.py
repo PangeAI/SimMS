@@ -1,22 +1,16 @@
 from pathlib import Path
 import numpy as np
+import torch
 from matchms import calculate_scores
 from matchms.importing import load_from_mgf
 from matchms.similarity import CosineGreedy
-from cudams.similarity import CudaCosineGreedy
-from cudams.utils import download
-from pathlib import Path
-import numpy as np
-from tqdm import tqdm
-import torch
 from numba import cuda
-assert torch.cuda.is_available()
-assert cuda.is_available()
+from tqdm import tqdm
 from cudams.similarity import CudaCosineGreedy
 from cudams.utils import download
-import pickle
 from pathlib import Path
 from matchms import calculate_scores
+from cudams.utils import download
 from ..utils import get_expected_cosine_greedy_score
 
 def test_sparse_calculate_scores(

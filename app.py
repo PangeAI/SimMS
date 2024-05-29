@@ -1,23 +1,21 @@
 """
-Gradio UI for running Cosine Greedy without writing code.
+Gradio UI for running Cosine Greedy as a web app.
 """
 
-import gradio as gr
-import torch
 import os
 from pathlib import Path
+from typing import List, Literal, Optional
+import gradio as gr
+import torch
 from matchms import Spectrum
-from typing import List, Optional, Literal
-# os.system("nvidia-smi")
-# print("TORCH_CUDA", torch.cuda.is_available())
+
 
 def preprocess_spectra(spectra: List[Spectrum]) -> Spectrum:
-    from matchms.filtering import select_by_intensity, \
-        normalize_intensities, \
-        select_by_relative_intensity, \
-        reduce_to_number_of_peaks, \
-        select_by_mz, \
-        require_minimum_number_of_peaks
+    from matchms.filtering import (normalize_intensities,
+                                   reduce_to_number_of_peaks,
+                                   require_minimum_number_of_peaks,
+                                   select_by_intensity, select_by_mz,
+                                   select_by_relative_intensity)
     
     def process_spectrum(spectrum: Spectrum) -> Optional[Spectrum]:
         """
@@ -43,19 +41,15 @@ def run(r_filepath:Path, q_filepath:Path,
         array_type: Literal['sparse','numpy'] = "numpy",
         sparse_threshold: float = .75):
     print('\n>>>>', r_filepath, q_filepath, array_type, '\n')
-    # debug = os.getenv('CUDAMS_DEBUG') == '1'
-    # if debug:
-    #     r_filepath = Path('tests/data/pesticides.mgf')
-    #     q_filepath = Path('tests/data/pesticides.mgf')
 
     assert r_filepath is not None, "Reference file is missing."
     assert q_filepath is not None, "Query file is missing."
     import tempfile
-    import numpy as np
-    from cudams.similarity import CudaCosineGreedy
-    from matchms.importing import load_from_mgf
-    from matchms import calculate_scores
     import matplotlib.pyplot as plt
+    import numpy as np
+    from matchms import calculate_scores
+    from matchms.importing import load_from_mgf
+    from cudams.similarity import CudaCosineGreedy
 
     refs = preprocess_spectra(list(load_from_mgf(str(r_filepath))))
     ques = preprocess_spectra(list(load_from_mgf(str(q_filepath))))

@@ -1,5 +1,4 @@
 from pathlib import Path
-
 import numpy as np
 from matchms import calculate_scores
 from matchms.filtering import (default_filters, normalize_intensities,
@@ -7,17 +6,16 @@ from matchms.filtering import (default_filters, normalize_intensities,
 from matchms.importing import load_from_mgf
 from matchms.similarity import CosineGreedy
 from numba import cuda
-
 from cudams.similarity import CudaCosineGreedy
 from cudams.utils import download
+
 
 def readme_fn():
     from matchms import calculate_scores
     from matchms.importing import load_from_mgf
+    from cudams.similarity import (CudaCosineGreedy, CudaFingerprintSimilarity,
+                                   CudaModifiedCosine)
     from cudams.utils import download
-    from cudams.similarity import CudaCosineGreedy, \
-                                CudaModifiedCosine, \
-                                CudaFingerprintSimilarity
 
     sample_file = download('pesticides.mgf')
     references = list(load_from_mgf(sample_file))

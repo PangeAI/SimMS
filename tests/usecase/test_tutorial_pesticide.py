@@ -1,5 +1,4 @@
 from pathlib import Path
-
 import numpy as np
 from matchms import calculate_scores
 from matchms.filtering import (default_filters, normalize_intensities,
@@ -7,13 +6,11 @@ from matchms.filtering import (default_filters, normalize_intensities,
 from matchms.importing import load_from_mgf
 from matchms.similarity import CosineGreedy
 from numba import cuda
-
 from cudams.similarity import CudaCosineGreedy
 from cudams.utils import download
 
 
 def test_tutorial_pesticide():
-    assert cuda.is_available()
     pest_file = download("pesticides.mgf")
     assert isinstance(pest_file, str), "Don't use strings for downloader"
 

@@ -1,21 +1,20 @@
-import warnings
 import logging
+import warnings
 from itertools import product
 from pathlib import Path
 from typing import List, Literal
 import numpy as np
 import torch
 from matchms import Spectrum
-from matchms.similarity.BaseSimilarity import BaseSimilarity
-from numba import cuda
-from ..utils import CudaTimer
-from tqdm import tqdm
-from sparsestack import StackedSparseArray
-from ..utils import argbatch
-from .spectrum_similarity_functions import modified_cosine_kernel
-
 from matchms.filtering.metadata_processing.add_precursor_mz import \
     _convert_precursor_mz
+from matchms.similarity.BaseSimilarity import BaseSimilarity
+from numba import cuda
+from sparsestack import StackedSparseArray
+from tqdm import tqdm
+from ..utils import CudaTimer, argbatch
+from .spectrum_similarity_functions import modified_cosine_kernel
+
 
 logger = logging.getLogger("cudams")
 

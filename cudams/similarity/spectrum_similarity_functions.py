@@ -8,6 +8,7 @@ from matchms.similarity.spectrum_similarity_functions import (
 from numba import cuda, pndindex, prange, types
 from torch import Tensor
 
+
 def cosine_greedy_kernel(
     tolerance: float = 0.1,
     shift: float = 0,

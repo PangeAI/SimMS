@@ -1,8 +1,9 @@
-import numpy as np
-from typing import Type
 import warnings
+from typing import Type
+import numpy as np
 import pytest
 from joblib import Memory
+
 
 memory = Memory(location="cache")
 

@@ -1,10 +1,8 @@
-from typing import List, Union
-
 import numpy as np
+from typing import List, Union, Literal
 from matchms import Spectrum
 from matchms.similarity.BaseSimilarity import BaseSimilarity
 from sparsestack import StackedSparseArray
-
 from .vector_similarity_functions import (cosine_similarity_matrix,
                                           dice_similarity_matrix,
                                           jaccard_similarity_matrix)
@@ -62,7 +60,7 @@ class CudaFingerprintSimilarity(BaseSimilarity):
 
     def __init__(
         self,
-        similarity_measure: str = "jaccard",
+        similarity_measure: Literal["cosine", "dice", "jaccard"] = "jaccard",
         set_empty_scores: Union[float, int, str] = "nan",
     ):
         """

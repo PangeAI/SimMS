@@ -1,16 +1,17 @@
-import pytest
+from typing import Type
 import matchms
 import numpy as np
-from typing import Type
-from matchms.similarity  import ModifiedCosine, CosineGreedy
-from cudams.similarity import CudaCosineGreedy, CudaModifiedCosine
-from matchms.filtering import reduce_to_number_of_peaks
-from ..utils import get_expected_cosine_greedy_score, get_expected_score
+import pytest
 from joblib import Memory
+from matchms.filtering import reduce_to_number_of_peaks
+from matchms.similarity import CosineGreedy, ModifiedCosine
+from cudams.similarity import CudaCosineGreedy, CudaModifiedCosine
+from ..utils import get_expected_cosine_greedy_score, get_expected_score
 
-cache = Memory('cache', verbose=False).cache
 
-@cache
+memory = Memory('cache', verbose=False)
+
+@memory.cache
 def trimmed_spectra(gnps, n_max_peaks):
     spectra = [reduce_to_number_of_peaks(sp, n_max=n_max_peaks) for sp in gnps]
     spectra = [sp for sp in spectra if sp is not None]
@@ -88,5 +89,4 @@ def test_stress(
     if overflow_rate > 0:
         warns.append(f'overflow={overflow_rate:.7f} # {overflow_num}')
     
-    # Assert no errors occurred during testing
     assert not errors, f"ERR: {errors}, WARN: {warns}"
