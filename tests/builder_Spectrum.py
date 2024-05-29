@@ -1,7 +1,6 @@
 import numpy as np
 from matchms import Spectrum
 
-
 class SpectrumBuilder:
     """Builder class to better handle Spectrum creation throughout all matchms unit tests."""
 

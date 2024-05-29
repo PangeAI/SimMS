@@ -143,8 +143,8 @@ def cosine_greedy_kernel(
         
         lowest_idx = types.int32(0)
         num_match = types.int32(0)
-        
-        overflow = False
+        overflow = types.boolean(False)
+
         for peak1_idx in range(rleni):
             if overflow:
                 break
@@ -168,7 +168,8 @@ def cosine_greedy_kernel(
                         num_match += 1
                         overflow = num_match >= MATCH_LIMIT  # This is the errorcode for overflow
 
-        out[2, i, j] = overflow
+        if overflow:
+            out[2, i, j] = 1.0
         
         if num_match == 0:
             return

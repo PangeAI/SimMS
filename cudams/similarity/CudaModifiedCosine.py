@@ -12,7 +12,7 @@ from matchms.similarity.BaseSimilarity import BaseSimilarity
 from numba import cuda
 from sparsestack import StackedSparseArray
 from tqdm import tqdm
-from ..utils import CudaTimer, argbatch
+from ..utils import argbatch
 from .spectrum_similarity_functions import modified_cosine_kernel
 
 
@@ -126,7 +126,6 @@ class CudaModifiedCosine(BaseSimilarity):
         self.match_limit = match_limit
         self.verbose = verbose
         self.n_max_peaks = n_max_peaks
-        self.kernel_time = 0  # Used for debugging and timing
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.sparse_threshold = sparse_threshold
 
@@ -271,16 +270,12 @@ class CudaModifiedCosine(BaseSimilarity):
         # Initialize batched inputs
         batched_inputs = self._get_batches(references=references, queries=queries)
         R, Q = len(references), len(queries)
-        timer = CudaTimer()
 
         # Initialize result variable based on array_type
         if array_type == "numpy":
             result = torch.empty(3, R, Q, dtype=torch.float32, device=self.device)
         elif array_type == "sparse":
             result = []
-
-        # Initialize kernel time
-        self.kernel_time = 0
 
         # Iterate over batched inputs
         with torch.no_grad():
@@ -334,9 +329,6 @@ class CudaModifiedCosine(BaseSimilarity):
                 timer.start()
                 self.kernel(rspec, qspec, lens, meta, out)
                 timer.stop()
-
-                # Update kernel time
-                self.kernel_time += timer.elapsed_seconds() / len(batched_inputs)
 
                 # Convert output to tensor
                 out = torch.as_tensor(out)

@@ -2,10 +2,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 from cudams.similarity import CudaCosineGreedy
+from cudams.utils import Timer
 
 @pytest.mark.parametrize(
     'batch_size, match_limit, n_max_peaks, array_type, sparse_threshold', 
     [
+        
         [512, 2048, 1024, 'numpy', 0,],
         [1024, 2048, 1024, 'numpy', 0,],
         [2048, 2048, 1024, 'numpy', 0,],
@@ -38,9 +40,10 @@ def test_performance(
                               verbose=False)
     # Warm-up
     # kernel.matrix(gnps[:4], gnps[:4])
-    kernel.matrix(
-        gnps[:batch_size],
-        gnps[:batch_size],
-        array_type=array_type,
-    )
-    print(f"\n=> PERF:  {kernel.kernel_time:.4f}s @ Bs:{batch_size}, ml:{match_limit}, np:{n_max_peaks} at:{array_type}, sp:{sparse_threshold}, \n")
+    with Timer() as t:
+        kernel.matrix(
+            gnps[:batch_size],
+            gnps[:batch_size],
+            array_type=array_type,
+        )
+    print(f"\n=> PERF:  {t.duration:.4f}s @ Bs:{batch_size}, ml:{match_limit}, np:{n_max_peaks} at:{array_type}, sp:{sparse_threshold}, \n")

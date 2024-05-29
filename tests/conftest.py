@@ -23,7 +23,6 @@ def warn_on_no_cuda():
 @pytest.fixture(autouse=True, scope="session")
 def ignore_warnings():
     import os
-
     os.environ["NUMBA_DISABLE_PERFORMANCE_WARNINGS"] = "1"
     yield
 
