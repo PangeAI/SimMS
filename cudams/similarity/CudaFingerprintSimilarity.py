@@ -64,6 +64,7 @@ class CudaFingerprintSimilarity(BaseSimilarity):
         self,
         similarity_measure: Literal["cosine", "dice", "jaccard"] = "jaccard",
         set_empty_scores: Union[float, int, str] = "nan",
+        batch_size:int = 2048,
     ):
         """
 
@@ -84,6 +85,7 @@ class CudaFingerprintSimilarity(BaseSimilarity):
             "jaccard",
         ], "Unknown similarity measure."
         self.similarity_measure = similarity_measure
+        self.batch_size = batch_size
 
     def pair(self, reference: Spectrum, query: Spectrum) -> float:
         """Calculate fingerprint based similarity score between two spectra.
