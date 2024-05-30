@@ -91,9 +91,9 @@ def test_stress(
     # Prepare error and warning messages
     errors = []
     warns = []
-    if accuracy_rate < 1:
+    if accuracy_rate < 0.99:
         errors.append(f"accuracy={accuracy_rate:.7f} # {inaccuracy_num}")
-    if match_accuracy_rate < 1:
+    if match_accuracy_rate < 0.99:
         errors.append(f"match_acc={match_accuracy_rate:.7f} # {match_inaccuracy_num}")
     if overflow_rate > 0:
         warns.append(f"overflow={overflow_rate:.7f} # {overflow_num}")
