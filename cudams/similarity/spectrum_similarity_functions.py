@@ -1,8 +1,10 @@
 """
 Defines CUDA kernels written in Numba API. 
 """
+
 import warnings
 from numba import cuda, types
+
 
 def cosine_greedy_kernel(
     tolerance: float = 0.1,
@@ -55,7 +57,9 @@ def cosine_greedy_kernel(
     BLOCKS_PER_GRID_Y = (Q + THREADS_PER_BLOCK_Y - 1) // THREADS_PER_BLOCK_Y
     BLOCKS_PER_GRID = (BLOCKS_PER_GRID_X, BLOCKS_PER_GRID_Y)
 
-    @cuda.jit('void(float32[:,:,:], float32[:,:,:], int32[:,:], float32[:,:], float32[:,:,:])')
+    @cuda.jit(
+        "void(float32[:,:,:], float32[:,:,:], int32[:,:], float32[:,:], float32[:,:,:])"
+    )
     def _kernel(
         rspec,
         qspec,
@@ -69,7 +73,7 @@ def cosine_greedy_kernel(
         Parameters:
         -----------
         rspec : cuda.devicearray
-            All reference spectra. Float tensor. 
+            All reference spectra. Float tensor.
             Shape [2, batch_size, n_max_peaks]. Zero-padded, when spectra are smaller than n_max_peaks.
             Stores mz (0th slice), and intensity (1st slice).
         qspec : cuda.devicearray
@@ -78,10 +82,10 @@ def cosine_greedy_kernel(
             Number of peaks in both spectra batches. Integer tensor. Shape [2, batch_size]. Zero padded, when number of spectra are not divisible by
             batch size and we are processing the edge-batches.
         norms : cuda.devicearray
-            Contains a pre-computed norm for both spectra batches. Float tensor. Shape [2, batch_size]. 
+            Contains a pre-computed norm for both spectra batches. Float tensor. Shape [2, batch_size].
         out : cuda.devicearray
-            Stores results. Float tensor. Shape [batch_size, batch_size, 3]. 
-            The last dimention (3) contains: score, matches, overflow. 
+            Stores results. Float tensor. Shape [batch_size, batch_size, 3].
+            The last dimention (3) contains: score, matches, overflow.
 
         The kernel is designed to efficiently compute cosine similarity scores
         between reference and query spectra by relying on CUDA parallelization.
@@ -97,7 +101,7 @@ def cosine_greedy_kernel(
 
         # Get global indices
         i, j = cuda.grid(2)
-        
+
         # Check we aren't out of the max possible grid size
         if i >= R or j >= Q:
             return
@@ -110,21 +114,21 @@ def cosine_greedy_kernel(
         # Get actual number of peaks in R
         rleni = lens[0, i]
         qlenj = lens[1, j]
-        
+
         # If either R or Q spectra are empty, return
         if rleni == 0 or qlenj == 0:
             return
-        
+
         # Read pre-calculated norms for R and Q, multiply to get the score norm
         score_norm = norms[0, i] * norms[1, j]
 
-        # Unpack R into m/z and intensity sets 
-        rmz = rspec[0] # rmz is [batch_size, n_max_peaks]
-        rint = rspec[1] # rint is [batch_size, n_max_peaks]
+        # Unpack R into m/z and intensity sets
+        rmz = rspec[0]  # rmz is [batch_size, n_max_peaks]
+        rint = rspec[1]  # rint is [batch_size, n_max_peaks]
 
         # Read current thread's reference spectrum
-        spec1_mz = rmz[i] # spec1_mz is [n_max_peaks]
-        spec1_int = rint[i] # spec1_int is [n_max_peaks]
+        spec1_mz = rmz[i]  # spec1_mz is [n_max_peaks]
+        spec1_int = rint[i]  # spec1_int is [n_max_peaks]
 
         # Similar steps for reading this thread's Query
         qmz = qspec[0]
@@ -133,15 +137,15 @@ def cosine_greedy_kernel(
         spec2_int = qint[j]
 
         #### PART 1: Collect peak pairs  ####
-        # Allocate matches and values arrays in GPU global memory. 
+        # Allocate matches and values arrays in GPU global memory.
         # These will store peak indices (r_idx, q_idx) and peak contributions (float) respectively
 
         matches = cuda.local.array(MATCH_LIMIT, types.int32)
         values = cuda.local.array(MATCH_LIMIT, types.float32)
 
         # We follow the matchms.similarity.spectrum_similarity_functions.collect_peak_pairs as closely as possible
-        
-        ### FIND MATCHES 
+
+        ### FIND MATCHES
         # The following is equivalent to the `matchms.similarity.spectrum_similarity_functions.find_matches`
         # We do a compare all peaks in both spectra, and keep track of peaks within the given tolerance.
         # We store first `match_limit` number of matches and peak contributions (values) into `matches` and `values` arrays.
@@ -165,19 +169,23 @@ def cosine_greedy_kernel(
                 else:
                     if not overflow:
                         int_q = spec2_int[peak2_idx]
-                        # Binary trick! 
-                        # since we know that the largest imaginable peak index can fit in 13 bits 
+                        # Binary trick!
+                        # since we know that the largest imaginable peak index can fit in 13 bits
                         # We pack two 16bit ints in 32bit int to use less memory
                         matches[num_match] = (peak1_idx << 16) | peak2_idx
-                        values[num_match] = (mz_r ** mz_power * int_r ** int_power) * (mz_q ** mz_power * int_q ** int_power)
+                        values[num_match] = (mz_r**mz_power * int_r**int_power) * (
+                            mz_q**mz_power * int_q**int_power
+                        )
                         num_match += 1
                         # Once we have filled the entire allocated `matches` array, we stop adding more. We call this the `overflow`
-                        overflow = num_match >= MATCH_LIMIT  # This is the errorcode for overflow
+                        overflow = (
+                            num_match >= MATCH_LIMIT
+                        )  # This is the errorcode for overflow
 
         # The overflow gets returned as the 3rd output for this RxQ comparison.
         if overflow:
             out[2, i, j] = 1.0
-        
+
         # In case we didn't get any matches, we return. We already have set 0 as the default output above.
         if num_match == 0:
             return
@@ -197,31 +205,35 @@ def cosine_greedy_kernel(
             for left in range(0, num_match - k, k * 2):
                 rght = left + k
                 rend = rght + k
-                
+
                 rend = min(rend, num_match)
 
-                m = left; ix = left; jx = rght;
+                m = left
+                ix = left
+                jx = rght
                 while ix < rght and jx < rend:
-                    mask = (values[ix] > values[jx])
+                    mask = values[ix] > values[jx]
                     temp_matches[m] = mask * matches[ix] + (1 - mask) * matches[jx]
                     temp_values[m] = mask * values[ix] + (1 - mask) * values[jx]
-                    ix+=mask
-                    jx+=(1-mask)
-                    m+=1
+                    ix += mask
+                    jx += 1 - mask
+                    m += 1
 
                 while ix < rght:
-                    temp_matches[m] = matches[ix]; 
-                    temp_values[m] = values[ix]; 
-                    ix+=1; m+=1;
-                
+                    temp_matches[m] = matches[ix]
+                    temp_values[m] = values[ix]
+                    ix += 1
+                    m += 1
+
                 while jx < rend:
-                    temp_matches[m] = matches[jx]; 
-                    temp_values[m] = values[jx]; 
-                    jx+=1; m+=1;
-                
+                    temp_matches[m] = matches[jx]
+                    temp_values[m] = values[jx]
+                    jx += 1
+                    m += 1
+
                 for m in range(left, rend):
-                    matches[m] = temp_matches[m]; 
-                    values[m] = temp_values[m]; 
+                    matches[m] = temp_matches[m]
+                    values[m] = temp_values[m]
             k *= 2
 
         #### PART 3: Sum unnormalized peak contributions, and remove duplicates ####
@@ -245,7 +257,7 @@ def cosine_greedy_kernel(
             if (not used_r[peak1_idx]) and (not used_q[peak2_idx]):
                 used_r[peak1_idx] = True
                 used_q[peak2_idx] = True
-                score += values[m];
+                score += values[m]
                 used_matches += 1
 
         # We finally normalize and return the score
@@ -324,7 +336,9 @@ def cosine_greedy_kernel(
             norms_cu,
             out_cu,
         )
+
     return kernel
+
 
 def modified_cosine_kernel(
     tolerance: float = 0.1,
@@ -364,7 +378,7 @@ def modified_cosine_kernel(
     if is_symmetric:
         warnings.warn("no effect from is_symmetric, it is not yet implemented")
 
-    MATCH_LIMIT = match_limit * 2 # Since we now need twice as much space for both...
+    MATCH_LIMIT = match_limit * 2  # Since we now need twice as much space for both...
     N_MAX_PEAKS = n_max_peaks
     R, Q = batch_size, batch_size
     THREADS_PER_BLOCK_X = 1
@@ -374,7 +388,9 @@ def modified_cosine_kernel(
     BLOCKS_PER_GRID_Y = (Q + THREADS_PER_BLOCK_Y - 1) // THREADS_PER_BLOCK_Y
     BLOCKS_PER_GRID = (BLOCKS_PER_GRID_X, BLOCKS_PER_GRID_Y)
 
-    @cuda.jit('void(float32[:,:,:], float32[:,:,:], int32[:,:], float32[:,:], float32[:,:,:])')
+    @cuda.jit(
+        "void(float32[:,:,:], float32[:,:,:], int32[:,:], float32[:,:], float32[:,:,:])"
+    )
     def _kernel(
         rspec,
         qspec,
@@ -415,7 +431,7 @@ def modified_cosine_kernel(
         thread_j = cuda.threadIdx.y
         block_size_x = cuda.blockDim.x
         block_size_y = cuda.blockDim.y
-        
+
         # Check we aren't out of the max possible grid size
         if i >= R or j >= Q:
             return
@@ -428,19 +444,19 @@ def modified_cosine_kernel(
         # Get actual length of R
         rleni = lens[0, i]
         qlenj = lens[1, j]
-        
+
         if rleni == 0 or qlenj == 0:
             return
-        
-        # Norms are pre-calculated. 
+
+        # Norms are pre-calculated.
         # reference norm is meta[0, :], query is meta[1, :]
         score_norm = meta[0, i] * meta[1, j]
-        
+
         # reference precursor_mz is meta[2, :], query is meta[3, :]
         mass_shift = meta[2, i] - meta[3, j]
-        
+
         # We unpack mz and int from arrays
-        rmz = rspec[0] 
+        rmz = rspec[0]
         rint = rspec[1]
         spec1_mz = rmz[i]
         spec1_int = rint[i]
@@ -450,7 +466,7 @@ def modified_cosine_kernel(
         spec2_mz = qmz[j]
         spec2_int = qint[j]
 
-        spec1_mz_sh = spec1_mz # `spec1_mz_sh` is named so because at some point I experimented with R residing in shared-mem. It didn't work too well.
+        spec1_mz_sh = spec1_mz  # `spec1_mz_sh` is named so because at some point I experimented with R residing in shared-mem. It didn't work too well.
         spec1_int_sh = spec1_int
 
         #### PART 1: Find matches ####
@@ -463,15 +479,15 @@ def modified_cosine_kernel(
         # Allocate 2x ML
         # Run first fully, second fully
         # How to sort? We have bunch of empty space in between. We need third fgin array to copy both to, to sort correctly (or pad with zeros)
-        # Optionally, prefill val arr with zeros, and then sort it. 
+        # Optionally, prefill val arr with zeros, and then sort it.
         # SECOND:
         # Allocate 2x ML
         # Run fist (add), immediately add second (shifted version) too,
         # Same loop iter
-        ## 
+        ##
         # This will give possibly interleaved pattern of matches i.e. [match, sft-match, match, match, sft, sft, sft, ... ]
-        # 
-        
+        #
+
         num_match = 0
 
         lowest_idx = 0
@@ -496,10 +512,14 @@ def modified_cosine_kernel(
                         # Binary trick! We pack two 16bit ints in 32bit int to use less memory
                         # since we know that largest imaginable peak index can fit in 13 bits
                         matches[num_match] = (peak1_idx << 16) | peak2_idx
-                        values[num_match] = (mz_r ** mz_power * int_r ** int_power) * (mz_q ** mz_power * int_q ** int_power)
+                        values[num_match] = (mz_r**mz_power * int_r**int_power) * (
+                            mz_q**mz_power * int_q**int_power
+                        )
                         num_match += 1
-                        overflow = num_match >= (MATCH_LIMIT//2)  # This is the errorcode for overflow
-        
+                        overflow = num_match >= (
+                            MATCH_LIMIT // 2
+                        )  # This is the errorcode for overflow
+
         shift = mass_shift
         lowest_idx = 0
         overflow_ms = False
@@ -522,12 +542,16 @@ def modified_cosine_kernel(
                         # Binary trick! We pack two 16bit ints in 32bit int to use less memory
                         # since we know that largest imaginable peak index can fit in 13 bits
                         matches[num_match] = (peak1_idx << 16) | peak2_idx
-                        values[num_match] = (mz_r ** mz_power * int_r ** int_power) * (mz_q ** mz_power * int_q ** int_power)
+                        values[num_match] = (mz_r**mz_power * int_r**int_power) * (
+                            mz_q**mz_power * int_q**int_power
+                        )
                         num_match += 1
-                        overflow_ms = num_match >= MATCH_LIMIT  # This is the errorcode for overflow
+                        overflow_ms = (
+                            num_match >= MATCH_LIMIT
+                        )  # This is the errorcode for overflow
 
         out[2, i, j] = overflow + 2 * overflow_ms
-        
+
         ## Second part here...
 
         if num_match == 0:
@@ -549,31 +573,35 @@ def modified_cosine_kernel(
             for left in range(0, num_match - k, k * 2):
                 rght = left + k
                 rend = rght + k
-                
+
                 rend = min(rend, num_match)
 
-                m = left; ix = left; jx = rght;
+                m = left
+                ix = left
+                jx = rght
                 while ix < rght and jx < rend:
-                    mask = (values[ix] > values[jx])
+                    mask = values[ix] > values[jx]
                     temp_matches[m] = mask * matches[ix] + (1 - mask) * matches[jx]
                     temp_values[m] = mask * values[ix] + (1 - mask) * values[jx]
-                    ix+=mask
-                    jx+=(1-mask)
-                    m+=1
+                    ix += mask
+                    jx += 1 - mask
+                    m += 1
 
                 while ix < rght:
-                    temp_matches[m] = matches[ix]; 
-                    temp_values[m] = values[ix]; 
-                    ix+=1; m+=1;
-                
+                    temp_matches[m] = matches[ix]
+                    temp_values[m] = values[ix]
+                    ix += 1
+                    m += 1
+
                 while jx < rend:
-                    temp_matches[m] = matches[jx]; 
-                    temp_values[m] = values[jx]; 
-                    jx+=1; m+=1;
-                
+                    temp_matches[m] = matches[jx]
+                    temp_values[m] = values[jx]
+                    jx += 1
+                    m += 1
+
                 for m in range(left, rend):
-                    matches[m] = temp_matches[m]; 
-                    values[m] = temp_values[m]; 
+                    matches[m] = temp_matches[m]
+                    values[m] = temp_values[m]
             k *= 2
 
         #### PART: 3 ####
@@ -594,12 +622,12 @@ def modified_cosine_kernel(
             if (not used_r[peak1_idx]) and (not used_q[peak2_idx]):
                 used_r[peak1_idx] = True
                 used_q[peak2_idx] = True
-                score += values[m];
+                score += values[m]
                 used_matches += 1
 
         #### ALTERNATIVE PART 2-3: ALTENRNATIVE SORT+ACCUMULATE PATHWAY ####
         # This pathway is much faster when matches and average scores are *extremely* rare
-        # TODO: 
+        # TODO:
         # In the future, we should compile both kernels, compare perfs and use fastest kernel.
         # score = types.float32(0.0)
         # used_matches = types.uint16(0)
@@ -672,6 +700,7 @@ def modified_cosine_kernel(
             norms_cu,
             out_cu,
         )
+
     return kernel
 
 
@@ -685,4 +714,4 @@ def cpu_parallel_cosine_greedy(
     n_max_peaks: int = 2048,
     is_symmetric: bool = False,
 ) -> callable:
-    pass    
+    pass

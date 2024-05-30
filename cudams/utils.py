@@ -7,19 +7,30 @@ import sys
 import warnings
 from itertools import product
 from pathlib import Path
-from typing import Iterable, List, Literal, Optional
+from typing import Iterable, List, Literal, Optional, Type
 import numpy as np
 import pandas as pd
+from joblib import Memory
 from matchms import Spectrum
-from matchms.filtering import (add_losses, normalize_intensities,
-                               reduce_to_number_of_peaks,
-                               require_minimum_number_of_peaks, select_by_mz,
-                               select_by_relative_intensity)
+from matchms.filtering import (
+    add_losses,
+    normalize_intensities,
+    reduce_to_number_of_peaks,
+    require_minimum_number_of_peaks,
+    select_by_mz,
+    select_by_relative_intensity,
+)
+from matchms.similarity.BaseSimilarity import BaseSimilarity
 from numba import cuda
 from tqdm import tqdm
 
 
+cache = Memory(
+    "cache",
+    verbose=0,
+).cache
 logger = logging.getLogger("cudams")
+
 
 def argbatch(lst: list, batch_size: int) -> Iterable[tuple[int, int]]:
     """
@@ -33,6 +44,7 @@ def argbatch(lst: list, batch_size: int) -> Iterable[tuple[int, int]]:
     """
     for i in range(0, len(lst), batch_size):
         yield i, i + batch_size
+
 
 def mkdir(p: Path, clean=False) -> Path:
     "Modified pathlib mkdir, made a bit convenient to use."
@@ -49,6 +61,7 @@ def mute_stdout():
     sys.stdout = io.BytesIO()
     yield
     sys.stdout = save_stdout
+
 
 def ignore_performance_warnings():
     from numba.core.errors import NumbaPerformanceWarning
@@ -72,7 +85,7 @@ def spectra_peaks_to_tensor(
         batch: [len(spectra)] int32
     """
     dynamic_shape = max(len(s.peaks) for s in spectra)
-    n_max_peaks = dynamic_shape if n_max_peaks is None else n_max_peaks 
+    n_max_peaks = dynamic_shape if n_max_peaks is None else n_max_peaks
 
     mz = np.empty((len(spectra), n_max_peaks), dtype=dtype)
     int = np.empty((len(spectra), n_max_peaks), dtype=dtype)
@@ -259,6 +272,7 @@ def download(
     Downloaded files are cached, and not re-downloaded after the initial call.
     """
     import pooch
+
     return pooch.retrieve(
         # TODO: Before we fully migrate we still use old repo for file reference
         # url=f"https://github.com/PangeAI/cudams/releases/download/samples-0.1/{name}",
@@ -282,45 +296,65 @@ class Timer:
 
 cudams_style = {
     # Seaborn common parameters
-    'figure.facecolor': 'white',
-    'text.color': '.15',
-    'axes.labelcolor': '.15',
-    'legend.frameon': False,
-    'legend.numpoints': 1,
-    'legend.scatterpoints': 1,
-    'xtick.direction': 'out',
-    'ytick.direction': 'out',
-    'xtick.color': '.15',
-    'ytick.color': '.15',
-    'axes.axisbelow': True,
-    'image.cmap': 'Greys',
-    'font.family': 'sans-serif',
-    'font.sans-serif': ['Arial', 'Liberation Sans', 'DejaVu Sans', 'Bitstream Vera Sans', 'sans-serif'],
-    'grid.linestyle': '-',
-    'lines.solid_capstyle': 'round',
-
+    "figure.facecolor": "white",
+    "text.color": ".15",
+    "axes.labelcolor": ".15",
+    "legend.frameon": False,
+    "legend.numpoints": 1,
+    "legend.scatterpoints": 1,
+    "xtick.direction": "out",
+    "ytick.direction": "out",
+    "xtick.color": ".15",
+    "ytick.color": ".15",
+    "axes.axisbelow": True,
+    "image.cmap": "Greys",
+    "font.family": "sans-serif",
+    "font.sans-serif": [
+        "Arial",
+        "Liberation Sans",
+        "DejaVu Sans",
+        "Bitstream Vera Sans",
+        "sans-serif",
+    ],
+    "grid.linestyle": "-",
+    "lines.solid_capstyle": "round",
     # Seaborn whitegrid parameters
-    'axes.grid': True,
-    'axes.facecolor': 'white',
-    'axes.edgecolor': '.8',
-    'axes.linewidth': 1,
-    'grid.color': '.8',
-    'xtick.major.size': 0,
-    'ytick.major.size': 0,
-    'xtick.minor.size': 0,
-    'ytick.minor.size': 0,
-
+    "axes.grid": True,
+    "axes.facecolor": "white",
+    "axes.edgecolor": ".8",
+    "axes.linewidth": 1,
+    "grid.color": ".8",
+    "xtick.major.size": 0,
+    "ytick.major.size": 0,
+    "xtick.minor.size": 0,
+    "ytick.minor.size": 0,
     # Figure and font sizes
-    'figure.figsize': (4.9, 3.5),
-    'font.size': 13.0,
+    "figure.figsize": (4.9, 3.5),
+    "font.size": 13.0,
     # 'font.family': 'serif',
     # 'font.serif': 'Palatino',
-    'axes.titlesize': 'medium',
-    'figure.titlesize': 'medium',
+    "axes.titlesize": "medium",
+    "figure.titlesize": "medium",
     # 'text.usetex': True,
     # 'text.latex.preamble': r'\usepackage{amsmath}\usepackage{amssymb}\usepackage{siunitx}[=v2]'
 }
 
+
 def use_style():
     import matplotlib.pyplot as plt
+
     plt.style.use(cudams_style)
+
+
+@cache
+def get_correct_scores(
+    references: list,
+    queries: list,
+    similarity_class: Type[BaseSimilarity],
+    **similarity_parameters,
+) -> np.ndarray:
+    """
+    MatchMS is quite slow for large number of spectra. To avoid re-calculating same scores with exact same arguments for testing,
+    we cache the results on the disk and read them back if everything matches (class, args, all spectra involved).
+    """
+    return similarity_class(**similarity_parameters).matrix(references, queries)

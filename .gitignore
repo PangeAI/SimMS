@@ -173,3 +173,6 @@ notebooks/figures/scratchpad.ipynb
 data/
 notebooks/prototyping
 test.sh
+*.png
+*.jpg
+*.jpeg

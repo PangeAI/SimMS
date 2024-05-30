@@ -118,6 +118,7 @@ def test_cosine_greedy_pair(
         expected_matches[0]
     ), "Expected different number of matching peaks."
 
+
 @pytest.mark.parametrize("symmetric", [[True], [False]])
 @pytest.mark.github_ci
 def test_cosine_greedy_matrix(symmetric):

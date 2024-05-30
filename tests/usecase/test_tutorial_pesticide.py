@@ -1,8 +1,11 @@
 from pathlib import Path
 import numpy as np
 from matchms import calculate_scores
-from matchms.filtering import (default_filters, normalize_intensities,
-                               reduce_to_number_of_peaks)
+from matchms.filtering import (
+    default_filters,
+    normalize_intensities,
+    reduce_to_number_of_peaks,
+)
 from matchms.importing import load_from_mgf
 from matchms.similarity import CosineGreedy
 from numba import cuda

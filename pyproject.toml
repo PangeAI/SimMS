@@ -62,6 +62,7 @@ sections = "FUTURE,STDLIB,THIRDPARTY,FIRSTPARTY,LOCALFOLDER"
 no_lines_before = "FUTURE,STDLIB,THIRDPARTY,FIRSTPARTY,LOCALFOLDER"
 lines_after_imports = 2
 known_first_party = "cudams"
+profile = "black"
 
 [tool.pytest.ini_options]
 pythonpath = [

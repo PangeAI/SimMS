@@ -3,16 +3,25 @@ import numpy as np
 import pytest
 from joblib import Memory
 from matchms import Scores, Spectrum, calculate_scores
-from matchms.similarity import (BaseSimilarity, CosineGreedy,
-                                FingerprintSimilarity, ModifiedCosine)
-from cudams.similarity import (CudaCosineGreedy, CudaFingerprintSimilarity,
-                               CudaModifiedCosine)
+from matchms.similarity import (
+    BaseSimilarity,
+    CosineGreedy,
+    FingerprintSimilarity,
+    ModifiedCosine,
+)
+from cudams.similarity import (
+    CudaCosineGreedy,
+    CudaFingerprintSimilarity,
+    CudaModifiedCosine,
+)
+from cudams.utils import get_correct_scores
 from ..builder_Spectrum import SpectrumBuilder
 
 
 memory = Memory(location="cache")
 
-def equality_function(prefix:str):
+
+def equality_function(prefix: str):
     def equality(scores: Scores, scores_cu: Scores):
         score = scores[f"{prefix}_score"]
         score_cu = scores_cu[f"Cuda{prefix}_score"]
@@ -29,7 +38,9 @@ def equality_function(prefix:str):
 
         # We allow only few overflows
         assert not_ovfl.mean() >= 0.99
+
     return equality
+
 
 def equality_function_fingerprint(
     scores: Scores,
@@ -41,9 +52,14 @@ def equality_function_fingerprint(
 @pytest.mark.parametrize(
     "SimilarityClass, args, CudaSimilarityClass, cu_args, equality_function",
     [
-
-        (CosineGreedy, (), CudaCosineGreedy, (), equality_function('CosineGreedy')),
-        (ModifiedCosine, (), CudaModifiedCosine, (), equality_function('ModifiedCosine')),
+        (CosineGreedy, (), CudaCosineGreedy, (), equality_function("CosineGreedy")),
+        (
+            ModifiedCosine,
+            (),
+            CudaModifiedCosine,
+            (),
+            equality_function("ModifiedCosine"),
+        ),
         (
             FingerprintSimilarity,
             ("jaccard",),
@@ -77,7 +93,10 @@ def test_compatibility(
 ):
     references, queries = gnps_with_fingerprint[:256], gnps_with_fingerprint[:256]
 
-    kernel = SimilarityClass(*args)
+    kernel = get_correct_scores(
+        references=references, queries=queries, similarity_class=SimilarityClass, *args
+    )
+
     scores = calculate_scores(
         references=references,
         queries=queries,

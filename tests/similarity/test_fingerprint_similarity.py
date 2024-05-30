@@ -114,6 +114,7 @@ def test_fingerprint_similarity_parallel(
         score_matrix, expected_matrix, equal_nan=True
     ), "Expected different values."
 
+
 @pytest.mark.github_ci
 def test_fingerprint_similarity_with_scores_sorting():
     """Test if score works with Scores.scores_by_query and sorting."""

@@ -3,9 +3,11 @@ import numpy as np
 from matchms import Spectrum
 from matchms.similarity.BaseSimilarity import BaseSimilarity
 from sparsestack import StackedSparseArray
-from .vector_similarity_functions import (cosine_similarity_matrix,
-                                          dice_similarity_matrix,
-                                          jaccard_similarity_matrix)
+from .vector_similarity_functions import (
+    cosine_similarity_matrix,
+    dice_similarity_matrix,
+    jaccard_similarity_matrix,
+)
 
 
 class CudaFingerprintSimilarity(BaseSimilarity):
@@ -162,17 +164,17 @@ class CudaFingerprintSimilarity(BaseSimilarity):
         similarity_matrix = create_full_matrix()
 
         if self.similarity_measure == "jaccard":
-            similarity_matrix[
-                np.ix_(idx_fingerprints1, idx_fingerprints2)
-            ] = jaccard_similarity_matrix(fingerprints1, fingerprints2)
+            similarity_matrix[np.ix_(idx_fingerprints1, idx_fingerprints2)] = (
+                jaccard_similarity_matrix(fingerprints1, fingerprints2)
+            )
         elif self.similarity_measure == "dice":
-            similarity_matrix[
-                np.ix_(idx_fingerprints1, idx_fingerprints2)
-            ] = dice_similarity_matrix(fingerprints1, fingerprints2)
+            similarity_matrix[np.ix_(idx_fingerprints1, idx_fingerprints2)] = (
+                dice_similarity_matrix(fingerprints1, fingerprints2)
+            )
         elif self.similarity_measure == "cosine":
-            similarity_matrix[
-                np.ix_(idx_fingerprints1, idx_fingerprints2)
-            ] = cosine_similarity_matrix(fingerprints1, fingerprints2)
+            similarity_matrix[np.ix_(idx_fingerprints1, idx_fingerprints2)] = (
+                cosine_similarity_matrix(fingerprints1, fingerprints2)
+            )
         if array_type == "sparse":
             scores_array = StackedSparseArray(len(references), len(queries))
             scores_array.add_dense_matrix(

@@ -57,7 +57,7 @@ class CudaCosineGreedy(BaseSimilarity):
     matrix(references: List[Spectrum], queries: List[Spectrum], array_type: Literal["numpy", "sparse"] = "numpy", is_symmetric: bool = False) -> np.ndarray:
         Calculate a matrix of similarity scores between reference and query spectra.
     """
-        
+
     score_datatype = [
         ("score", np.float32),
         ("matches", np.int32),
@@ -73,7 +73,7 @@ class CudaCosineGreedy(BaseSimilarity):
         batch_size: int = 2048,
         n_max_peaks: int = 1024,
         match_limit: int = 2048,
-        sparse_threshold: float = .75,
+        sparse_threshold: float = 0.75,
         verbose=False,
     ):
         """
@@ -120,7 +120,7 @@ class CudaCosineGreedy(BaseSimilarity):
             int_power=self.int_power,
             match_limit=self.match_limit,
             batch_size=self.batch_size,
-            n_max_peaks=self.n_max_peaks
+            n_max_peaks=self.n_max_peaks,
         )
 
         # Warn if CUDA device is unavailable
@@ -128,7 +128,7 @@ class CudaCosineGreedy(BaseSimilarity):
             warnings.warn(f"{self.__class__.__name__}: CUDA device seems unavailable.")
 
     def _spectra_peaks_to_tensor(
-        self, 
+        self,
         spectra: list,
     ) -> tuple[np.ndarray, np.ndarray]:
         """
@@ -150,7 +150,7 @@ class CudaCosineGreedy(BaseSimilarity):
             n_max_peaks = dynamic_shape
         else:
             n_max_peaks = self.n_max_peaks
-        
+
         # Initialize arrays
         dtype = self.score_datatype[0][1]
         mz = np.zeros((len(spectra), n_max_peaks), dtype=dtype)
@@ -164,7 +164,7 @@ class CudaCosineGreedy(BaseSimilarity):
                 mz[i, :spec_len] = s._peaks.mz[:spec_len]
                 int[i, :spec_len] = s._peaks.intensities[:spec_len]
                 spectra_lens[i] = spec_len
-        
+
         # Stack arrays and return
         stacked_spectra = np.stack([mz, int], axis=0)
         return stacked_spectra, spectra_lens
@@ -197,7 +197,7 @@ class CudaCosineGreedy(BaseSimilarity):
 
         batched_inputs = tuple(product(batches_r, batches_q))
         return batched_inputs
-    
+
     def pair(self, reference: Spectrum, query: Spectrum) -> float:
         """
         Calculate the cosine similarity score between a reference and a query spectrum. Used for testing only.
@@ -216,7 +216,7 @@ class CudaCosineGreedy(BaseSimilarity):
         """
         result_mat = self.matrix([reference], [query])
         return np.asarray(result_mat.squeeze(), dtype=self.score_datatype)
-    
+
     def matrix(
         self,
         references: List[Spectrum],
@@ -248,11 +248,15 @@ class CudaCosineGreedy(BaseSimilarity):
             warnings.warn("is_symmetric is ignored here, it has no effect.")
 
         # Check if array_type is valid
-        assert array_type in ['numpy', 'sparse'], "Invalid array_type. Use 'numpy' or 'sparse'."
+        assert array_type in [
+            "numpy",
+            "sparse",
+        ], "Invalid array_type. Use 'numpy' or 'sparse'."
+
+        R, Q = len(references), len(queries)
 
         # Initialize batched inputs
         batched_inputs = self._get_batches(references=references, queries=queries)
-        R, Q = len(references), len(queries)
 
         # Initialize result variable based on array_type
         if array_type == "numpy":
@@ -273,20 +277,42 @@ class CudaCosineGreedy(BaseSimilarity):
 
                 # Create tensor for spectrum lengths
                 lens = torch.zeros(2, self.batch_size, dtype=torch.int32)
-                lens[0, :len(rlen)] = torch.from_numpy(rlen)
-                lens[1, :len(qlen)] = torch.from_numpy(qlen)
+                lens[0, : len(rlen)] = torch.from_numpy(rlen)
+                lens[1, : len(qlen)] = torch.from_numpy(qlen)
                 lens = lens.to(self.device)
 
                 # Convert spectra to tensors and move to device
-                rspec = torch.from_numpy(rspec).to(self.device) # 2, R, N 
-                qspec = torch.from_numpy(qspec).to(self.device) # 2, Q, M
+                rspec = torch.from_numpy(rspec).to(self.device)  # 2, R, N
+                qspec = torch.from_numpy(qspec).to(self.device)  # 2, Q, M
 
                 # Pre-calculate norms
-                norms = torch.ones(2, self.batch_size, dtype=torch.float32).to(self.device)
-                rnorm = ((rspec[0, :, :] ** self.mz_power * rspec[1, :, :] ** self.int_power) ** 2).sum(-1).sqrt() # R
-                qnorm = ((qspec[0, :, :] ** self.mz_power * qspec[1, :, :] ** self.int_power) ** 2).sum(-1).sqrt() # Q
-                norms[0, :len(rnorm)] = rnorm
-                norms[1, :len(qnorm)] = qnorm
+                norms = torch.ones(2, self.batch_size, dtype=torch.float32).to(
+                    self.device
+                )
+                rnorm = (
+                    (
+                        (
+                            rspec[0, :, :] ** self.mz_power
+                            * rspec[1, :, :] ** self.int_power
+                        )
+                        ** 2
+                    )
+                    .sum(-1)
+                    .sqrt()
+                )  # R
+                qnorm = (
+                    (
+                        (
+                            qspec[0, :, :] ** self.mz_power
+                            * qspec[1, :, :] ** self.int_power
+                        )
+                        ** 2
+                    )
+                    .sum(-1)
+                    .sqrt()
+                )  # Q
+                norms[0, : len(rnorm)] = rnorm
+                norms[1, : len(qnorm)] = qnorm
 
                 # Convert tensors to CUDA arrays
                 rspec = cuda.as_cuda_array(rspec)
@@ -310,9 +336,11 @@ class CudaCosineGreedy(BaseSimilarity):
                 out = torch.as_tensor(out)
 
                 # Populate result based on array_type
-                if array_type == 'numpy':
-                    result[:, rstart:rend, qstart:qend] = out[:, :len(rlen), :len(qlen)]
-                elif array_type == 'sparse':
+                if array_type == "numpy":
+                    result[:, rstart:rend, qstart:qend] = out[
+                        :, : len(rlen), : len(qlen)
+                    ]
+                elif array_type == "sparse":
                     mask = out[0] >= self.sparse_threshold
                     row, col = torch.nonzero(mask, as_tuple=True)
                     rabs = (rstart + row).cpu()
@@ -329,23 +357,25 @@ class CudaCosineGreedy(BaseSimilarity):
                     )
 
             # Return result based on array_type
-            if array_type == 'numpy':
+            if array_type == "numpy":
                 return np.rec.fromarrays(
                     result.cpu().numpy(),
                     dtype=self.score_datatype,
                 )
-            elif array_type == 'sparse':
+            elif array_type == "sparse":
                 sp = StackedSparseArray(len(references), len(queries))
                 sparse_data = []
 
                 for bunch in tqdm(result, disable=not self.verbose):
-                    sparse_data.append((
-                        bunch["rabs"],
-                        bunch["qabs"],
-                        bunch["score"],
-                        bunch["matches"],
-                        bunch["overflow"]
-                    ))
+                    sparse_data.append(
+                        (
+                            bunch["rabs"],
+                            bunch["qabs"],
+                            bunch["score"],
+                            bunch["matches"],
+                            bunch["overflow"],
+                        )
+                    )
 
                 if sparse_data:
                     r, q, s, m, o = zip(*sparse_data)
@@ -354,8 +384,8 @@ class CudaCosineGreedy(BaseSimilarity):
                         np.array(q),
                         np.rec.fromarrays(
                             arrayList=[np.array(s), np.array(m), np.array(o)],
-                            names=['score', 'matches', 'overflow']
+                            names=["score", "matches", "overflow"],
                         ),
-                        name='sparse'
+                        name="sparse",
                     )
                 return sp

@@ -15,18 +15,18 @@ if os.getenv("NUMBA_ENABLE_CUDASIM") == "1":
 
     def fake_as_cuda_array(obj, sync=True):
         return obj
-    
-    original_event = cuda.event 
+
+    original_event = cuda.event
 
     def fake_event(*args, **kwargs):
         return original_event()
-    
+
     cuda.pinned = fake_cuda_pinned
     cuda.as_cuda_array = fake_as_cuda_array
     cuda.event = fake_event
 
 __author__ = "CudaMS developers community"
-__email__ = 'tornikeonoprishvili@gmail.com'
+__email__ = "tornikeonoprishvili@gmail.com"
 __all__ = [
     "__version__",
     "similarity",
