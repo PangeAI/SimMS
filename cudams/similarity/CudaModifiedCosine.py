@@ -12,7 +12,7 @@ from numba import cuda
 from sparsestack import StackedSparseArray
 from tqdm import tqdm
 from ..utils import argbatch
-from .spectrum_similarity_functions import modified_cosine_kernel
+from .spectrum_similarity_functions import cosine_greedy_kernel
 
 
 logger = logging.getLogger("cudams")
@@ -132,13 +132,14 @@ class CudaModifiedCosine(BaseSimilarity):
         self.sparse_threshold = sparse_threshold
 
         # Compile kernel function
-        self.kernel = modified_cosine_kernel(
+        self.kernel = cosine_greedy_kernel(
             tolerance=self.tolerance,
             mz_power=self.mz_power,
             int_power=self.int_power,
             match_limit=self.match_limit,
             batch_size=self.batch_size,
             n_max_peaks=self.n_max_peaks,
+            precursor_shift=True,
         )
 
         # Warn if CUDA device is unavailable
@@ -295,19 +296,14 @@ class CudaModifiedCosine(BaseSimilarity):
                 ) = batched_inputs[batch_i]
 
                 # Create tensor for spectrum lengths
-                lens = torch.zeros(2, self.batch_size, dtype=torch.int32)
-                lens[0, : len(rlen)] = torch.from_numpy(rlen)
-                lens[1, : len(qlen)] = torch.from_numpy(qlen)
-                lens = lens.to(self.device)
+                # Tensor holding lengths and norms
+                metadata = torch.zeros(6, self.batch_size, dtype=torch.float32, device=self.device)
 
                 # Convert spectra to tensors and move to device
                 rspec = torch.from_numpy(rspec).to(self.device)  # 2, R, N
                 qspec = torch.from_numpy(qspec).to(self.device)  # 2, Q, M
 
-                # Pre-calculate metadata (includes norm + precursor_mz)
-                meta = torch.ones(4, self.batch_size, dtype=torch.float32).to(
-                    self.device
-                )
+                # Pre-calculate norms
                 rnorm = (
                     (
                         (
@@ -330,17 +326,20 @@ class CudaModifiedCosine(BaseSimilarity):
                     .sum(-1)
                     .sqrt()
                 )  # Q
-                meta[0, : len(rnorm)] = rnorm
-                meta[1, : len(qnorm)] = qnorm
 
-                meta[2, : len(rnorm)] = torch.from_numpy(rpmz)
-                meta[3, : len(qnorm)] = torch.from_numpy(qpmz)
+                # Create tensor for 
+                metadata[0, :len(rlen)] = torch.from_numpy(rlen).to(self.device)
+                metadata[1, :len(qlen)] = torch.from_numpy(qlen).to(self.device)
+                metadata[2, :len(rnorm)] = rnorm
+                metadata[3, :len(qnorm)] = qnorm
+                metadata[4, :len(rpmz)] = torch.from_numpy(rpmz).to(self.device)
+                metadata[5, :len(qpmz)] = torch.from_numpy(qpmz).to(self.device)
+
 
                 # Convert tensors to CUDA arrays
                 rspec = cuda.as_cuda_array(rspec)
                 qspec = cuda.as_cuda_array(qspec)
-                lens = cuda.as_cuda_array(lens)
-                meta = cuda.as_cuda_array(meta)
+                metadata = cuda.as_cuda_array(metadata)
 
                 # Initialize output tensor
                 out = torch.empty(
@@ -352,7 +351,7 @@ class CudaModifiedCosine(BaseSimilarity):
                 )
                 out = cuda.as_cuda_array(out)
 
-                self.kernel(rspec, qspec, lens, meta, out)
+                self.kernel(rspec, qspec, metadata, out)
 
                 # Convert output to tensor
                 out = torch.as_tensor(out)
