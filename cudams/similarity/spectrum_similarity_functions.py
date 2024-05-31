@@ -14,6 +14,7 @@ def cosine_greedy_kernel(
     batch_size: int = 2048,
     n_max_peaks: int = 2048,
     is_symmetric: bool = False,
+    precursor_shift: bool = False
 ) -> callable:
     """
     Compiles and returns a CUDA kernel function for calculating cosine similarity scores between spectra.
@@ -47,7 +48,11 @@ def cosine_greedy_kernel(
         warnings.warn("no effect from is_symmetric, it is not yet implemented")
 
     # Define global constants
-    MATCH_LIMIT = match_limit
+    PRECURSOR_SHIFT = precursor_shift
+    if PRECURSOR_SHIFT:
+        MATCH_LIMIT = match_limit * 2
+    else:
+        MATCH_LIMIT = match_limit
     SHIFT = shift
     MZ_POWER = mz_power
     INT_POWER = int_power
@@ -62,10 +67,10 @@ def cosine_greedy_kernel(
     BLOCKS_PER_GRID = (BLOCKS_PER_GRID_X, BLOCKS_PER_GRID_Y)
 
     # Arguments: matched peaks [match_limit], peak value [match_limit], and return values [2]
-    @cuda.jit("""int32(int32, int32, float32[:,:,::1], float32[:,:,::1], float32[:,::1], float32, int32[::1], float32[::1])""", device=True, inline=True)
+    @cuda.jit("""int32(int32, int32, float32[:,:,::1], float32[:,:,::1], float32[:,::1], int32[::1], float32[::1])""", device=True, inline=True)
     def collect_peak_pairs(
             # Inputs
-            reference_i, query_j, rspec, qspec, metadata, shift,
+            reference_i, query_j, rspec, qspec, metadata,
             # Outputs
             matches, values,
         ):
@@ -108,9 +113,9 @@ def cosine_greedy_kernel(
                 if overflow:
                     break
                 mz_q = spec2_mz[peak2_idx]
-                if mz_q + shift > mz_r + TOLERANCE:
+                if mz_q + SHIFT > mz_r + TOLERANCE:
                     break
-                if mz_q + shift + TOLERANCE < mz_r:
+                if mz_q + SHIFT + TOLERANCE < mz_r:
                     lowest_idx = peak2_idx + 1
                 else:
                     if not overflow:
@@ -127,7 +132,108 @@ def cosine_greedy_kernel(
                         overflow = (
                             num_match >= MATCH_LIMIT
                         )  # This is the errorcode for overflow
+        if overflow:
+            num_match = -num_match
         return num_match
+
+    # Arguments: matched peaks [match_limit], peak value [match_limit], and return values [2]
+    @cuda.jit("""int32(int32, int32, float32[:,:,::1], float32[:,:,::1], float32[:,::1], int32[::1], float32[::1])""", device=True, inline=True)
+    def collect_shifted_peak_pairs(
+            # Inputs
+            reference_i, query_j, rspec, qspec, metadata,
+            # Outputs
+            matches, values,
+        ):
+        rleni = types.int32(metadata[0, reference_i])
+        qlenj = types.int32(metadata[1, query_j])
+
+        # If either R or Q spectra are empty, return
+        if rleni == 0 or qlenj == 0:
+            return 0
+
+        # Unpack R into m/z and intensity sets
+        rmz = rspec[0]  # rmz is [batch_size, n_max_peaks]
+        rint = rspec[1]  # rint is [batch_size, n_max_peaks]
+
+        # Read current thread's reference spectrum
+        spec1_mz = rmz[reference_i]  # spec1_mz is [n_max_peaks]
+        spec1_int = rint[reference_i]  # spec1_int is [n_max_peaks]
+
+        # Similar steps for reading this thread's Query
+        qmz = qspec[0]
+        qint = qspec[1]
+        spec2_mz = qmz[query_j]
+        spec2_int = qint[query_j]
+
+        lowest_idx = types.int32(0)
+        num_match = types.int32(0)
+        overflow = types.boolean(False)
+
+        for peak1_idx in range(rleni):
+            if overflow:
+                break
+            mz_r = spec1_mz[peak1_idx]
+            int_r = spec1_int[peak1_idx]
+            for peak2_idx in range(lowest_idx, qlenj):
+                if overflow:
+                    break
+                mz_q = spec2_mz[peak2_idx]
+                if mz_q + SHIFT > mz_r + TOLERANCE:
+                    break
+                if mz_q + SHIFT + TOLERANCE < mz_r:
+                    lowest_idx = peak2_idx + 1
+                else:
+                    if not overflow:
+                        int_q = spec2_int[peak2_idx]
+                        # Binary trick!
+                        # since we know that the largest imaginable peak index can fit in 13 bits
+                        # We pack two 16bit ints in 32bit int to use less memory
+                        matches[num_match] = (peak1_idx << 16) | peak2_idx
+                        values[num_match] = (mz_r**MZ_POWER * int_r**INT_POWER) * (
+                            mz_q**MZ_POWER * int_q**INT_POWER
+                        )
+                        num_match += 1
+                        # Once we have filled the entire allocated `matches` array, we stop adding more. We call this the `overflow`
+                        overflow = (
+                            num_match >= (MATCH_LIMIT//2)
+                        )  # This is the errorcode for overflow
+
+        lowest_idx = types.int32(0)
+        overflow_shifted = types.boolean(False)
+        shift = metadata[4, reference_i] - metadata[5, query_j]
+
+        for peak1_idx in range(rleni):
+            if overflow_shifted:
+                break
+            mz_r = spec1_mz[peak1_idx]
+            int_r = spec1_int[peak1_idx]
+            for peak2_idx in range(lowest_idx, qlenj):
+                if overflow_shifted:
+                    break
+                mz_q = spec2_mz[peak2_idx]
+                if mz_q + shift > mz_r + TOLERANCE:
+                    break
+                if mz_q + shift + TOLERANCE < mz_r:
+                    lowest_idx = peak2_idx + 1
+                else:
+                    if not overflow_shifted:
+                        int_q = spec2_int[peak2_idx]
+                        # Binary trick!
+                        # since we know that the largest imaginable peak index can fit in 13 bits
+                        # We pack two 16bit ints in 32bit int to use less memory
+                        matches[num_match] = (peak1_idx << 16) | peak2_idx
+                        values[num_match] = (mz_r**MZ_POWER * int_r**INT_POWER) * (
+                            mz_q**MZ_POWER * int_q**INT_POWER
+                        )
+                        num_match += 1
+                        # Once we have filled the entire allocated `matches` array, we stop adding more. We call this the `overflow`
+                        overflow_shifted = (
+                            num_match >= MATCH_LIMIT
+                        )  # This is the errorcode for overflow
+        if overflow or overflow_shifted:
+            num_match = -num_match
+        return num_match
+    
 
     @cuda.jit(device=True, inline=True)
     def sort_peaks_by_value(matches, values, num_match):
@@ -237,10 +343,16 @@ def cosine_greedy_kernel(
         values = cuda.local.array(MATCH_LIMIT, types.float32)
 
         ### FIND MATCHES
-        num_match = collect_peak_pairs(
-                        i, j, rspec, qspec, metadata, SHIFT, 
+        if PRECURSOR_SHIFT:
+            num_match = collect_shifted_peak_pairs(
+                        i, j, rspec, qspec, metadata,
                         matches, values
-                    )
+                        )
+        else:
+            num_match = collect_peak_pairs(
+                            i, j, rspec, qspec, metadata, 
+                            matches, values
+                        )
         
         # num_match = collect_peak_pairs(i, j, rspec, qspec, lens, )
 
@@ -248,8 +360,9 @@ def cosine_greedy_kernel(
         if num_match == 0:
             return
         
-        if num_match >= MATCH_LIMIT:
+        if num_match < 0:
             out[2, i, j] = 1.0
+        num_match = abs(num_match)
 
         #### PART 2: Sort peaks from largest to smallest ####
         # We use a non-recursive mergesort in order to sort matches by the peak contributions (values)
@@ -449,10 +562,6 @@ def modified_cosine_kernel(
         ## PREAMBLE:
         # Get global indices
         i, j = cuda.grid(2)
-        thread_i = cuda.threadIdx.x
-        thread_j = cuda.threadIdx.y
-        block_size_x = cuda.blockDim.x
-        block_size_y = cuda.blockDim.y
 
         # Check we aren't out of the max possible grid size
         if i >= R or j >= Q:
@@ -495,6 +604,7 @@ def modified_cosine_kernel(
         # On GPU global memory, we allocate temporary arrays for values and matches
         matches = cuda.local.array(MATCH_LIMIT, types.int32)
         values = cuda.local.array(MATCH_LIMIT, types.float32)
+
         # TODO
         ## Different ways to implement this
         # ONE:
