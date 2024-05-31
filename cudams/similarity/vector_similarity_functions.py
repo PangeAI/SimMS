@@ -33,10 +33,10 @@ def jaccard_similarity_matrix(
 
     # We know references and queries have same number of elements (bits)
     refs = (
-        torch.as_tensor(np.array(references, copy=False)).to(device).float()
+        torch.from_numpy(np.array(references, copy=False)).to(device).float()
     )  # Shape R, N
     ques = (
-        torch.as_tensor(np.array(queries, copy=False)).to(device).float()
+        torch.from_numpy(np.array(queries, copy=False)).to(device).float()
     )  # Shape Q, N
 
     intersection = refs @ ques.T  # Shape R, Q, all intersection rows are summed
@@ -81,8 +81,8 @@ def dice_similarity_matrix(references: np.ndarray, queries: np.ndarray) -> np.nd
     #     dice_score = 2.0 * np.float64(u_and_v.sum()) / np.float64(u_abs_and_v_abs)
     # return dice_score
 
-    refs = torch.as_tensor(references).to(device).float()  # Shape R, N
-    ques = torch.as_tensor(queries).to(device).float()  # Shape Q, N
+    refs = torch.from_numpy(np.array(references)).to(device).float()  # Shape R, N
+    ques = torch.from_numpy(np.array(queries)).to(device).float()  # Shape Q, N
 
     intersection = refs @ ques.T  # Shape R, Q, all intersection rows are summed
     union = refs.sum(1, keepdim=True).abs() + ques.sum(1, keepdim=True).abs().T  # R, Q
@@ -111,8 +111,8 @@ def cosine_similarity_matrix(references: np.ndarray, queries: np.ndarray) -> np.
         between the vectors references[i, :] and queries[j, :].
     """
 
-    refs = torch.as_tensor(references).to(device).float()  # R,N
-    ques = torch.as_tensor(queries).to(device).float()  # Q,N
+    refs = torch.from_numpy(np.array(references)).to(device).float()  # R,N
+    ques = torch.from_numpy(np.array(queries)).to(device).float()  # Q,N
     score = refs @ ques.T  # R, Q
     norm = refs.pow(2).sum(1, keepdim=True) @ ques.pow(2).sum(1, keepdim=True).T  # R, Q
     score = score.div(norm.sqrt()).nan_to_num(0)

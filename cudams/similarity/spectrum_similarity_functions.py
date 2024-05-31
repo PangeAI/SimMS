@@ -5,7 +5,6 @@ Defines CUDA kernels written in Numba API.
 import warnings
 from numba import cuda, types
 
-
 def cosine_greedy_kernel(
     tolerance: float = 0.1,
     shift: float = 0,
@@ -15,7 +14,7 @@ def cosine_greedy_kernel(
     batch_size: int = 2048,
     n_max_peaks: int = 2048,
     is_symmetric: bool = False,
-):
+) -> callable:
     """
     Compiles and returns a CUDA kernel function for calculating cosine similarity scores between spectra.
 
@@ -47,7 +46,12 @@ def cosine_greedy_kernel(
     if is_symmetric:
         warnings.warn("no effect from is_symmetric, it is not yet implemented")
 
+    # Define global constants
     MATCH_LIMIT = match_limit
+    SHIFT = shift
+    MZ_POWER = mz_power
+    INT_POWER = int_power
+    TOLERANCE = tolerance
     N_MAX_PEAKS = n_max_peaks
     R, Q = batch_size, batch_size
     THREADS_PER_BLOCK_X = 1
@@ -57,8 +61,79 @@ def cosine_greedy_kernel(
     BLOCKS_PER_GRID_Y = (Q + THREADS_PER_BLOCK_Y - 1) // THREADS_PER_BLOCK_Y
     BLOCKS_PER_GRID = (BLOCKS_PER_GRID_X, BLOCKS_PER_GRID_Y)
 
+    # Arguments: matched peaks [match_limit], peak value [match_limit], and return values [2]
+    @cuda.jit("""int32(int32, int32, float32[:,:,::1], float32[:,:,::1], int32[:,::1], int32[::1], float32[::1])""", device=True, inline=True)
+    def collect_peak_pairs(
+            # Inputs
+            reference_i, query_j, rspec, qspec, lens,
+            # Outputs
+            matches, values,
+        ):
+        """
+        Roughly equivalent to the `matchms.similarity.spectrum_similarity_functions.find_matches`
+        Collects all matching peaks within TOLERANCE and writes found `matches` and their peak products in `values`.
+        Returns one integer `num_matches`, which specifies how many peaks we've managed to match.
+        """
+        rleni = lens[0, reference_i]
+        qlenj = lens[1, query_j]
+
+        # If either R or Q spectra are empty, return
+        if rleni == 0 or qlenj == 0:
+            return 0
+
+        # Unpack R into m/z and intensity sets
+        rmz = rspec[0]  # rmz is [batch_size, n_max_peaks]
+        rint = rspec[1]  # rint is [batch_size, n_max_peaks]
+
+        # Read current thread's reference spectrum
+        spec1_mz = rmz[reference_i]  # spec1_mz is [n_max_peaks]
+        spec1_int = rint[reference_i]  # spec1_int is [n_max_peaks]
+
+        # Similar steps for reading this thread's Query
+        qmz = qspec[0]
+        qint = qspec[1]
+        spec2_mz = qmz[query_j]
+        spec2_int = qint[query_j]
+
+        lowest_idx = types.int32(0)
+        num_match = types.int32(0)
+        overflow = types.boolean(False)
+
+        for peak1_idx in range(rleni):
+            if overflow:
+                break
+            mz_r = spec1_mz[peak1_idx]
+            int_r = spec1_int[peak1_idx]
+            for peak2_idx in range(lowest_idx, qlenj):
+                if overflow:
+                    break
+                mz_q = spec2_mz[peak2_idx]
+                if mz_q + shift > mz_r + tolerance:
+                    break
+                if mz_q + shift + tolerance < mz_r:
+                    lowest_idx = peak2_idx + 1
+                else:
+                    if not overflow:
+                        int_q = spec2_int[peak2_idx]
+                        # Binary trick!
+                        # since we know that the largest imaginable peak index can fit in 13 bits
+                        # We pack two 16bit ints in 32bit int to use less memory
+                        matches[num_match] = (peak1_idx << 16) | peak2_idx
+                        values[num_match] = (mz_r**mz_power * int_r**int_power) * (
+                            mz_q**mz_power * int_q**int_power
+                        )
+                        num_match += 1
+                        # Once we have filled the entire allocated `matches` array, we stop adding more. We call this the `overflow`
+                        overflow = (
+                            num_match >= match_limit
+                        )  # This is the errorcode for overflow
+        return num_match
+
+    # Arguments are: References [2 (m/z, intensity), batch_size, n_max_peaks], Queries [Same], 
+    # lengths [2 (r length, q length), batch_size], norms [2 (r norm, q_norm), batch_size], outputs [3 (score, matches, overflow), batch_size, batch_size]
+    # The signature float32[:,:,::1] means a 3D contiguous Float32 array, with row-major ordering.
     @cuda.jit(
-        "void(float32[:,:,:], float32[:,:,:], int32[:,:], float32[:,:], float32[:,:,:])"
+        "void(float32[:,:,::1], float32[:,:,::1], int32[:,::1], float32[:,::1], float32[:,:,::1])"
     )
     def _kernel(
         rspec,
@@ -119,23 +194,6 @@ def cosine_greedy_kernel(
         if rleni == 0 or qlenj == 0:
             return
 
-        # Read pre-calculated norms for R and Q, multiply to get the score norm
-        score_norm = norms[0, i] * norms[1, j]
-
-        # Unpack R into m/z and intensity sets
-        rmz = rspec[0]  # rmz is [batch_size, n_max_peaks]
-        rint = rspec[1]  # rint is [batch_size, n_max_peaks]
-
-        # Read current thread's reference spectrum
-        spec1_mz = rmz[i]  # spec1_mz is [n_max_peaks]
-        spec1_int = rint[i]  # spec1_int is [n_max_peaks]
-
-        # Similar steps for reading this thread's Query
-        qmz = qspec[0]
-        qint = qspec[1]
-        spec2_mz = qmz[j]
-        spec2_int = qint[j]
-
         #### PART 1: Collect peak pairs  ####
         # Allocate matches and values arrays in GPU global memory.
         # These will store peak indices (r_idx, q_idx) and peak contributions (float) respectively
@@ -149,46 +207,18 @@ def cosine_greedy_kernel(
         # The following is equivalent to the `matchms.similarity.spectrum_similarity_functions.find_matches`
         # We do a compare all peaks in both spectra, and keep track of peaks within the given tolerance.
         # We store first `match_limit` number of matches and peak contributions (values) into `matches` and `values` arrays.
-        lowest_idx = types.int32(0)
-        num_match = types.int32(0)
-        overflow = types.boolean(False)
+        num_match = collect_peak_pairs(
+                        i, j, rspec, qspec, lens,
+                        matches, values
+                    )
 
-        for peak1_idx in range(rleni):
-            if overflow:
-                break
-            mz_r = spec1_mz[peak1_idx]
-            int_r = spec1_int[peak1_idx]
-            for peak2_idx in range(lowest_idx, qlenj):
-                if overflow:
-                    break
-                mz_q = spec2_mz[peak2_idx]
-                if mz_q + shift > mz_r + tolerance:
-                    break
-                if mz_q + shift + tolerance < mz_r:
-                    lowest_idx = peak2_idx + 1
-                else:
-                    if not overflow:
-                        int_q = spec2_int[peak2_idx]
-                        # Binary trick!
-                        # since we know that the largest imaginable peak index can fit in 13 bits
-                        # We pack two 16bit ints in 32bit int to use less memory
-                        matches[num_match] = (peak1_idx << 16) | peak2_idx
-                        values[num_match] = (mz_r**mz_power * int_r**int_power) * (
-                            mz_q**mz_power * int_q**int_power
-                        )
-                        num_match += 1
-                        # Once we have filled the entire allocated `matches` array, we stop adding more. We call this the `overflow`
-                        overflow = (
-                            num_match >= MATCH_LIMIT
-                        )  # This is the errorcode for overflow
-
-        # The overflow gets returned as the 3rd output for this RxQ comparison.
-        if overflow:
-            out[2, i, j] = 1.0
 
         # In case we didn't get any matches, we return. We already have set 0 as the default output above.
         if num_match == 0:
             return
+        
+        if num_match >= MATCH_LIMIT:
+            out[2, i, j] = 1.0
 
         #### PART 2: Sort peaks from largest to smallest ####
         # We use a non-recursive mergesort in order to sort matches by the peak contributions (values)
@@ -261,6 +291,10 @@ def cosine_greedy_kernel(
                 used_matches += 1
 
         # We finally normalize and return the score
+
+        # Read pre-calculated norms for R and Q, multiply to get the score norm
+        score_norm = norms[0, i] * norms[1, j]
+
         out[0, i, j] = score / score_norm
         out[1, i, j] = used_matches
 
@@ -389,7 +423,7 @@ def modified_cosine_kernel(
     BLOCKS_PER_GRID = (BLOCKS_PER_GRID_X, BLOCKS_PER_GRID_Y)
 
     @cuda.jit(
-        "void(float32[:,:,:], float32[:,:,:], int32[:,:], float32[:,:], float32[:,:,:])"
+        "void(float32[:,:,::1], float32[:,:,::1], int32[:,::1], float32[:,::1], float32[:,:,::1])"
     )
     def _kernel(
         rspec,

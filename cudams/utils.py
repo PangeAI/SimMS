@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Iterable, List, Literal, Optional, Type
 import numpy as np
 import pandas as pd
+import time
 from joblib import Memory
 from matchms import Spectrum
 from matchms.filtering import (
@@ -282,7 +283,6 @@ def download(
     )
 
 
-import time
 
 
 class Timer:
