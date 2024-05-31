@@ -275,20 +275,14 @@ class CudaCosineGreedy(BaseSimilarity):
                     qend,
                 ) = batched_inputs[batch_i]
 
-                # Create tensor for spectrum lengths
-                lens = torch.zeros(2, self.batch_size, dtype=torch.int32)
-                lens[0, : len(rlen)] = torch.from_numpy(rlen)
-                lens[1, : len(qlen)] = torch.from_numpy(qlen)
-                lens = lens.to(self.device)
+                # Tensor holding lengths and norms
+                metadata = torch.zeros(4, self.batch_size, dtype=torch.float32, device=self.device)
 
                 # Convert spectra to tensors and move to device
                 rspec = torch.from_numpy(rspec).to(self.device)  # 2, R, N
                 qspec = torch.from_numpy(qspec).to(self.device)  # 2, Q, M
 
                 # Pre-calculate norms
-                norms = torch.ones(2, self.batch_size, dtype=torch.float32).to(
-                    self.device
-                )
                 rnorm = (
                     (
                         (
@@ -311,14 +305,17 @@ class CudaCosineGreedy(BaseSimilarity):
                     .sum(-1)
                     .sqrt()
                 )  # Q
-                norms[0, : len(rnorm)] = rnorm
-                norms[1, : len(qnorm)] = qnorm
+
+                # Create tensor for 
+                metadata[0, :len(rlen)] = torch.from_numpy(rlen).to(self.device)
+                metadata[1, :len(qlen)] = torch.from_numpy(qlen).to(self.device)
+                metadata[2, :len(rnorm)] = rnorm
+                metadata[3, :len(qnorm)] = qnorm
 
                 # Convert tensors to CUDA arrays
                 rspec = cuda.as_cuda_array(rspec)
                 qspec = cuda.as_cuda_array(qspec)
-                lens = cuda.as_cuda_array(lens)
-                norms = cuda.as_cuda_array(norms)
+                metadata = cuda.as_cuda_array(metadata)
 
                 # Initialize output tensor
                 out = torch.empty(
@@ -330,7 +327,7 @@ class CudaCosineGreedy(BaseSimilarity):
                 )
                 out = cuda.as_cuda_array(out)
 
-                self.kernel(rspec, qspec, lens, norms, out)
+                self.kernel(rspec, qspec, metadata, out)
 
                 # Convert output to tensor
                 out = torch.as_tensor(out)
