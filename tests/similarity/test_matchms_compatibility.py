@@ -17,6 +17,7 @@ from cudams.similarity import (
 from cudams.utils import get_correct_scores
 from ..builder_Spectrum import SpectrumBuilder
 
+
 def equality_function(prefix: str):
     def equality(scores: Scores, scores_cu: Scores):
         score = scores[f"score"]

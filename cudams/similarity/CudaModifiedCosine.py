@@ -96,6 +96,7 @@ class CudaModifiedCosine(BaseSimilarity):
         match_limit: int = 2048,
         sparse_threshold: float = 0.75,
         verbose=False,
+        spectra_dtype: Literal['float32', 'float64'] = 'float64',
     ):
         """
         Initialize CudaModifiedCosine with specified parameters.
@@ -118,7 +119,14 @@ class CudaModifiedCosine(BaseSimilarity):
             Threshold for considering scores in sparse output, by default 0.75.
         verbose : bool, optional
             Verbosity flag, by default False.
+        spectra_dtype : str, optional
+            What dtype to use to process the spectral information. float32 works best for greedy cosine, but
+            for modified cosine, float64 might be more preferable. 
         """
+
+        # Warn if CUDA device is unavailable
+        if not cuda.is_available():
+            warnings.warn(f"{self.__class__.__name__}: CUDA device seems unavailable.")
 
         # Initialize parameters
         self.tolerance = tolerance
@@ -128,8 +136,10 @@ class CudaModifiedCosine(BaseSimilarity):
         self.match_limit = match_limit
         self.verbose = verbose
         self.n_max_peaks = n_max_peaks
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.sparse_threshold = sparse_threshold
+        self.spectra_dtype = spectra_dtype
+        
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         # Compile kernel function
         self.kernel = cosine_greedy_kernel(
@@ -141,10 +151,6 @@ class CudaModifiedCosine(BaseSimilarity):
             n_max_peaks=self.n_max_peaks,
             precursor_shift=True,
         )
-
-        # Warn if CUDA device is unavailable
-        if not cuda.is_available():
-            warnings.warn(f"{self.__class__.__name__}: CUDA device seems unavailable.")
 
     def _spectra_peaks_to_tensor(
         self,
@@ -171,7 +177,7 @@ class CudaModifiedCosine(BaseSimilarity):
             n_max_peaks = self.n_max_peaks
 
         # Initialize arrays
-        dtype = self.score_datatype[0][1]
+        dtype = self.spectra_dtype
         mz = np.zeros((len(spectra), n_max_peaks), dtype=dtype)
         int_ = np.zeros((len(spectra), n_max_peaks), dtype=dtype)
         spectra_lens = np.zeros(len(spectra), dtype=np.int32)
@@ -297,7 +303,8 @@ class CudaModifiedCosine(BaseSimilarity):
 
                 # Create tensor for spectrum lengths
                 # Tensor holding lengths and norms
-                metadata = torch.zeros(6, self.batch_size, dtype=torch.float32, device=self.device)
+                dtype_ = torch.float32 if self.spectra_dtype == 'float32' else torch.float64
+                metadata = torch.zeros(6, self.batch_size, dtype=dtype_, device=self.device)
 
                 # Convert spectra to tensors and move to device
                 rspec = torch.from_numpy(rspec).to(self.device)  # 2, R, N
@@ -327,19 +334,13 @@ class CudaModifiedCosine(BaseSimilarity):
                     .sqrt()
                 )  # Q
 
-                # Create tensor for 
-                metadata[0, :len(rlen)] = torch.from_numpy(rlen).to(self.device)
+                # Load all spectra metainformation into one tensor
+                metadata[0, :len(rlen)] = torch.from_numpy(rlen).to(self.device) # Lengths
                 metadata[1, :len(qlen)] = torch.from_numpy(qlen).to(self.device)
-                metadata[2, :len(rnorm)] = rnorm
+                metadata[2, :len(rnorm)] = rnorm # Norms
                 metadata[3, :len(qnorm)] = qnorm
-                metadata[4, :len(rpmz)] = torch.from_numpy(rpmz).to(self.device)
+                metadata[4, :len(rpmz)] = torch.from_numpy(rpmz).to(self.device) # Precursor m/z
                 metadata[5, :len(qpmz)] = torch.from_numpy(qpmz).to(self.device)
-
-
-                # Convert tensors to CUDA arrays
-                rspec = cuda.as_cuda_array(rspec)
-                qspec = cuda.as_cuda_array(qspec)
-                metadata = cuda.as_cuda_array(metadata)
 
                 # Initialize output tensor
                 out = torch.empty(
@@ -349,11 +350,18 @@ class CudaModifiedCosine(BaseSimilarity):
                     dtype=torch.float32,
                     device=self.device,
                 )
+
+                # Convert tensors to Numba CUDA arrays. 
+                # We need DOUBLE since 
+                rspec = cuda.as_cuda_array(rspec)
+                qspec = cuda.as_cuda_array(qspec)
+                metadata = cuda.as_cuda_array(metadata)
                 out = cuda.as_cuda_array(out)
 
+                # Run GPU kernel
                 self.kernel(rspec, qspec, metadata, out)
 
-                # Convert output to tensor
+                # Convert output to pytorch tensor
                 out = torch.as_tensor(out)
 
                 # Populate result based on array_type

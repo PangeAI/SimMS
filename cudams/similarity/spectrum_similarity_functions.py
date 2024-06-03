@@ -3,7 +3,10 @@ Defines CUDA kernels written in Numba API.
 """
 
 import warnings
-from numba import cuda, types
+from typing import Literal, Optional
+import numba
+from numba import cuda, float32, float64, int32, types, void
+
 
 def cosine_greedy_kernel(
     tolerance: float = 0.1,
@@ -14,7 +17,8 @@ def cosine_greedy_kernel(
     batch_size: int = 2048,
     n_max_peaks: int = 2048,
     is_symmetric: bool = False,
-    precursor_shift: bool = False
+    precursor_shift: bool = False,
+    spectra_dtype: Optional[str] = None,
 ) -> callable:
     """
     Compiles and returns a CUDA kernel function for calculating cosine similarity scores between spectra.
@@ -37,7 +41,9 @@ def cosine_greedy_kernel(
         Maximum number of peaks to consider, by default 2048.
     is_symmetric : bool, optional
         Flag indicating if the similarity matrix is symmetric, by default False.
-
+    dtype:
+        By default, we use float32 for greedy cosine and float64 for modified cosine. This can be overridden. Accepts 
+        arguments of type `numba.types.Float`
     Returns:
     --------
     callable
@@ -47,7 +53,8 @@ def cosine_greedy_kernel(
     if is_symmetric:
         warnings.warn("no effect from is_symmetric, it is not yet implemented")
 
-    # Define global constants
+    # Define global constants. These values will be
+    # transferred by NUMBA to the GPU, global read-only constants
     PRECURSOR_SHIFT = precursor_shift
     if PRECURSOR_SHIFT:
         MATCH_LIMIT = match_limit * 2
@@ -66,8 +73,19 @@ def cosine_greedy_kernel(
     BLOCKS_PER_GRID_Y = (Q + THREADS_PER_BLOCK_Y - 1) // THREADS_PER_BLOCK_Y
     BLOCKS_PER_GRID = (BLOCKS_PER_GRID_X, BLOCKS_PER_GRID_Y)
 
+    # It is recommended to use float64 for modified cosine calculations
+    # since the error can be 
+    if PRECURSOR_SHIFT:
+        FLOAT = numba.float64
+    else:
+        FLOAT = numba.float32
+
+    # If the user forces the dtype, we oblige
+    if spectra_dtype is not None:
+        FLOAT = numba.types.Float(spectra_dtype)
+
     # Arguments: matched peaks [match_limit], peak value [match_limit], and return values [2]
-    @cuda.jit("""int32(int32, int32, float32[:,:,::1], float32[:,:,::1], float32[:,::1], int32[::1], float32[::1])""", device=True, inline=True)
+    @cuda.jit(int32(int32, int32, FLOAT[:,:,::1], FLOAT[:,:,::1], FLOAT[:,::1], int32[::1], FLOAT[::1]), device=True, inline=True)
     def collect_peak_pairs(
             # Inputs
             reference_i, query_j, rspec, qspec, metadata,
@@ -137,7 +155,7 @@ def cosine_greedy_kernel(
         return num_match
 
     # Arguments: matched peaks [match_limit], peak value [match_limit], and return values [2]
-    @cuda.jit("""int32(int32, int32, float32[:,:,::1], float32[:,:,::1], float32[:,::1], int32[::1], float32[::1])""", device=True, inline=True)
+    @cuda.jit(int32(int32, int32, FLOAT[:,:,::1], FLOAT[:,:,::1], FLOAT[:,::1], int32[::1], FLOAT[::1]), device=True, inline=True)
     def collect_shifted_peak_pairs(
             # Inputs
             reference_i, query_j, rspec, qspec, metadata,
@@ -200,8 +218,10 @@ def cosine_greedy_kernel(
 
         lowest_idx = types.int32(0)
         overflow_shifted = types.boolean(False)
-        shift = metadata[4, reference_i] - metadata[5, query_j]
-
+        # shift = metadata[4, reference_i] - metadata[5, query_j]
+        rpmz = metadata[4, reference_i]
+        qpmz = metadata[5, query_j]
+        # r_pmz = 
         for peak1_idx in range(rleni):
             if overflow_shifted:
                 break
@@ -211,9 +231,9 @@ def cosine_greedy_kernel(
                 if overflow_shifted:
                     break
                 mz_q = spec2_mz[peak2_idx]
-                if mz_q + shift > mz_r + TOLERANCE:
+                if mz_q + rpmz > mz_r + qpmz + TOLERANCE:
                     break
-                if mz_q + shift + TOLERANCE < mz_r:
+                if mz_q + rpmz + TOLERANCE < mz_r + qpmz:
                     lowest_idx = peak2_idx + 1
                 else:
                     if not overflow_shifted:
@@ -238,7 +258,7 @@ def cosine_greedy_kernel(
     @cuda.jit(device=True, inline=True)
     def sort_peaks_by_value(matches, values, num_match):
         temp_matches = cuda.local.array(MATCH_LIMIT, types.int32)
-        temp_values = cuda.local.array(MATCH_LIMIT, types.float32)
+        temp_values = cuda.local.array(MATCH_LIMIT, FLOAT)
 
         # k is an expanding window of sorting. We initially sort single (size-1) elements,
         # At this point, all 2-tuples in the array are themselves sorted. We then double the sorting window (to 2)
@@ -283,7 +303,7 @@ def cosine_greedy_kernel(
     # lengths [2 (r length, q length), batch_size], norms [2 (r norm, q_norm), batch_size], outputs [3 (score, matches, overflow), batch_size, batch_size]
     # The signature float32[:,:,::1] means a 3D contiguous Float32 array, with row-major ordering.
     @cuda.jit(
-        "void(float32[:,:,::1], float32[:,:,::1], float32[:,::1], float32[:,:,::1])"
+        void(FLOAT[:,:,::1], FLOAT[:,:,::1], FLOAT[:,::1], float32[:,:,::1])
     )
     def _kernel(
         rspec,
@@ -340,7 +360,7 @@ def cosine_greedy_kernel(
         # These will store peak indices (r_idx, q_idx) and peak contributions (float) respectively
 
         matches = cuda.local.array(MATCH_LIMIT, types.int32)
-        values = cuda.local.array(MATCH_LIMIT, types.float32)
+        values = cuda.local.array(MATCH_LIMIT, FLOAT)
 
         ### FIND MATCHES
         if PRECURSOR_SHIFT:
@@ -353,15 +373,14 @@ def cosine_greedy_kernel(
                             i, j, rspec, qspec, metadata, 
                             matches, values
                         )
-        
-        # num_match = collect_peak_pairs(i, j, rspec, qspec, lens, )
-
+            
         # In case we didn't get any matches, we return. We already have set 0 as the default output above.
         if num_match == 0:
             return
-        
+        # We store the overflow flag inside num_match, when it's negative, it's overflown.
         if num_match < 0:
             out[2, i, j] = 1.0
+        # Correct the negative regardless
         num_match = abs(num_match)
 
         #### PART 2: Sort peaks from largest to smallest ####
@@ -378,8 +397,8 @@ def cosine_greedy_kernel(
             used_r[m] = False
             used_q[m] = False
 
-        used_matches = 0
-        score = 0.0
+        used_matches = types.float32(0)
+        score = types.float32(0.0)
 
         for m in range(num_match):
             # The binary trick is undone to get both peak indices back
@@ -441,10 +460,10 @@ def cosine_greedy_kernel(
         #         break
 
     def kernel(
-        rspec: cuda.devicearray,
-        qspec: cuda.devicearray,
-        metadata: cuda.devicearray,
-        out: cuda.devicearray,
+        rspec: cuda.devicearray.DeviceNDArray,
+        qspec: cuda.devicearray.DeviceNDArray,
+        metadata: cuda.devicearray.DeviceNDArray,
+        out: cuda.devicearray.DeviceNDArray,
         stream: cuda.stream = None,
     ) -> None:
         """
@@ -452,19 +471,18 @@ def cosine_greedy_kernel(
 
         Parameters:
         -----------
-        rspec_cu : cuda.devicearray
+        rspec : cuda.devicearray
             Array containing reference spectra data.
         qspec_cu : cuda.devicearray
             Array containing query spectra data.
         lens_cu : cuda.devicearray
             Array containing lengths of spectra.
         out_cu : cuda.devicearray
-            Array for storing similarity scores.
-        out_cu : cuda.devicearray
             Precalculated norms for each R and Q
         stream : cuda.stream, optional
             CUDA stream for asynchronous execution, by default None.
         """
+        
         _kernel[BLOCKS_PER_GRID, THREADS_PER_BLOCK, stream](
             rspec,
             qspec,

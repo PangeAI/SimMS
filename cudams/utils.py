@@ -4,13 +4,13 @@ import json
 import logging
 import shutil
 import sys
+import time
 import warnings
 from itertools import product
 from pathlib import Path
 from typing import Iterable, List, Literal, Optional, Type
 import numpy as np
 import pandas as pd
-import time
 from joblib import Memory
 from matchms import Spectrum
 from matchms.filtering import (
@@ -62,13 +62,6 @@ def mute_stdout():
     sys.stdout = io.BytesIO()
     yield
     sys.stdout = save_stdout
-
-
-def ignore_performance_warnings():
-    from numba.core.errors import NumbaPerformanceWarning
-
-    warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
-
 
 def spectra_peaks_to_tensor(
     spectra: list,
@@ -158,101 +151,6 @@ def get_ref_spectra_from_df(
     spectra = [s for s in spectra if s is not None]
     return spectra
 
-
-def get_spectra_batches(
-    reference_csv_file="data/input/example_dataset_tornike.csv",
-    query_csv_file="data/input/example_dataset_tornike.csv",
-    preprocess: Literal["minimal", "full"] = "minimal",
-    max_peaks=1024,
-    batch_size=512,
-    max_pairs=512**2,
-    padding=None,
-    dtype="float32",
-    verbose=False,
-) -> tuple[list[Spectrum], list[Spectrum], list[np.ndarray]]:
-    """
-    Convenience function that does everything the `get_ref_spectra_from_df` does, but also
-    transforms all the spectra into neat batches with same shape, so that they are ready for
-    GPU processing.
-
-    :param str reference_csv_file: A suitable csv file path (str)
-    :param str query_csv_file: A suitable csv file path (str)
-    :param str preprocess: Can be 'minimal' or 'full'. Determines which `matchms.filtering` functions we will use for spectra.
-    :param int max_peaks: determines the maximum length of spectra (after this number, spectra are truncated, if spectra are smaller, they are instead padded with zeros).
-    :param int padding: unused - this would make every *batch* the same shape. For current kernels we don't need this. If we were to port this to support Google's TPUs, we will likely need this then.
-    :param str dtype: numpy dtype of returned batches.
-    :param bool verbose: Allows reporting progress using `tqdm`.
-    :return: three lists - references, queries and list of numpy matrices. The latter can be
-    """
-    reference_csv_file = Path(reference_csv_file)
-    query_csv_file = Path(query_csv_file)
-
-    def process_spectrum_full(spectrum: np.ndarray) -> np.ndarray:
-        spectrum = select_by_mz(spectrum, mz_from=10.0, mz_to=1000.0)
-        spectrum = normalize_intensities(spectrum)
-        spectrum = select_by_relative_intensity(spectrum, intensity_from=0.001)
-        spectrum = reduce_to_number_of_peaks(spectrum, n_max=max_peaks)
-        spectrum = require_minimum_number_of_peaks(spectrum, n_required=5)
-        return spectrum
-
-    def process_spectrum_minimal(spectrum: np.ndarray) -> np.ndarray:
-        spectrum = reduce_to_number_of_peaks(spectrum, n_max=max_peaks)
-        return spectrum
-
-    process_spectrum = (
-        process_spectrum_full if preprocess == "full" else process_spectrum_minimal
-    )
-
-    limit = None
-    if max_pairs is not None:
-        limit = int(max_pairs**0.5) * 2
-
-    ref_spectra_df_path = Path(reference_csv_file)
-    ref_spectra_df = pd.read_csv(ref_spectra_df_path)
-    references = get_ref_spectra_from_df(
-        ref_spectra_df, spectrum_processor=process_spectrum, limit=limit
-    )
-
-    if reference_csv_file == query_csv_file:
-        queries = references[:]
-    else:
-        query_spectra_df_path = Path(query_csv_file)
-        query_spectra_df = pd.read_csv(query_spectra_df_path)
-        queries = get_ref_spectra_from_df(
-            query_spectra_df,
-            spectrum_processor=process_spectrum,
-            limit=limit,
-        )
-
-    if max_pairs is not None:
-        references = references[: int(max_pairs**0.5)]
-        queries = queries[: int(max_pairs**0.5)]
-
-    batches_r = []
-    for bstart, bend in tqdm(
-        argbatch(references, batch_size),
-        desc="Batch all references",
-        disable=not verbose,
-    ):
-        rbatch = references[bstart:bend]
-        rspec, rlen = spectra_peaks_to_tensor(rbatch, dtype=dtype, pad=padding)
-        batches_r.append([rspec, rlen, bstart, bend])
-
-    batches_q = []
-    for bstart, bend in tqdm(
-        argbatch(queries, batch_size),
-        desc="Batch all queries",
-        disable=not verbose,
-    ):
-        qbatch = queries[bstart:bend]
-        qspec, qlen = spectra_peaks_to_tensor(qbatch, dtype=dtype, pad=padding)
-        batches_q.append([qspec, qlen, bstart, bend])
-
-    batches_inputs = list(product(batches_r, batches_q))
-
-    return references, queries, batches_inputs
-
-
 def download(
     name: Literal[
         "ALL_GNPS.mgf",
@@ -282,9 +180,6 @@ def download(
         progressbar=True,
     )
 
-
-
-
 class Timer:
     def __enter__(self):
         self.duration = -time.perf_counter()
@@ -292,58 +187,6 @@ class Timer:
 
     def __exit__(self, *args):
         self.duration += time.perf_counter()
-
-
-cudams_style = {
-    # Seaborn common parameters
-    "figure.facecolor": "white",
-    "text.color": ".15",
-    "axes.labelcolor": ".15",
-    "legend.frameon": False,
-    "legend.numpoints": 1,
-    "legend.scatterpoints": 1,
-    "xtick.direction": "out",
-    "ytick.direction": "out",
-    "xtick.color": ".15",
-    "ytick.color": ".15",
-    "axes.axisbelow": True,
-    "image.cmap": "Greys",
-    "font.family": "sans-serif",
-    "font.sans-serif": [
-        "Arial",
-        "Liberation Sans",
-        "DejaVu Sans",
-        "Bitstream Vera Sans",
-        "sans-serif",
-    ],
-    "grid.linestyle": "-",
-    "lines.solid_capstyle": "round",
-    # Seaborn whitegrid parameters
-    "axes.grid": True,
-    "axes.facecolor": "white",
-    "axes.edgecolor": ".8",
-    "axes.linewidth": 1,
-    "grid.color": ".8",
-    "xtick.major.size": 0,
-    "ytick.major.size": 0,
-    "xtick.minor.size": 0,
-    "ytick.minor.size": 0,
-    # Figure and font sizes
-    "figure.figsize": (4.9, 3.5),
-    "font.size": 13.0,
-    # 'font.family': 'serif',
-    # 'font.serif': 'Palatino',
-    "axes.titlesize": "medium",
-    "figure.titlesize": "medium",
-    # 'text.usetex': True,
-    # 'text.latex.preamble': r'\usepackage{amsmath}\usepackage{amssymb}\usepackage{siunitx}[=v2]'
-}
-
-
-def use_style():
-    import matplotlib.pyplot as plt
-
-    plt.style.use(cudams_style)
 
 
 @cache
