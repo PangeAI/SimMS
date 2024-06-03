@@ -460,10 +460,10 @@ def cosine_greedy_kernel(
         #         break
 
     def kernel(
-        rspec: cuda.devicearray.DeviceNDArray,
-        qspec: cuda.devicearray.DeviceNDArray,
-        metadata: cuda.devicearray.DeviceNDArray,
-        out: cuda.devicearray.DeviceNDArray,
+        rspec,
+        qspec,
+        metadata,
+        out,
         stream: cuda.stream = None,
     ) -> None:
         """
