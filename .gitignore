@@ -176,3 +176,4 @@ test.sh
 *.png
 *.jpg
 *.jpeg
+assets/perf.svg

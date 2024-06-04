@@ -152,7 +152,7 @@ class CudaCosineGreedy(BaseSimilarity):
             n_max_peaks = self.n_max_peaks
 
         # Initialize arrays
-        dtype = self.score_datatype[0][1]
+        dtype = np.float32
         mz = np.zeros((len(spectra), n_max_peaks), dtype=dtype)
         int = np.zeros((len(spectra), n_max_peaks), dtype=dtype)
         spectra_lens = np.zeros(len(spectra), dtype=np.int32)
@@ -306,16 +306,12 @@ class CudaCosineGreedy(BaseSimilarity):
                     .sqrt()
                 )  # Q
 
-                # Create tensor for 
+                # Create tensor for lengths, and norms
                 metadata[0, :len(rlen)] = torch.from_numpy(rlen).to(self.device)
                 metadata[1, :len(qlen)] = torch.from_numpy(qlen).to(self.device)
                 metadata[2, :len(rnorm)] = rnorm
                 metadata[3, :len(qnorm)] = qnorm
 
-                # Convert tensors to CUDA arrays
-                rspec = cuda.as_cuda_array(rspec)
-                qspec = cuda.as_cuda_array(qspec)
-                metadata = cuda.as_cuda_array(metadata)
 
                 # Initialize output tensor
                 out = torch.empty(
@@ -325,8 +321,14 @@ class CudaCosineGreedy(BaseSimilarity):
                     dtype=torch.float32,
                     device=self.device,
                 )
+
+                # Convert tensors to CUDA arrays
+                rspec = cuda.as_cuda_array(rspec)
+                qspec = cuda.as_cuda_array(qspec)
+                metadata = cuda.as_cuda_array(metadata)
                 out = cuda.as_cuda_array(out)
 
+                # Run GPU kernel
                 self.kernel(rspec, qspec, metadata, out)
 
                 # Convert output to tensor

@@ -53,13 +53,17 @@ def cosine_greedy_kernel(
     if is_symmetric:
         warnings.warn("no effect from is_symmetric, it is not yet implemented")
 
-    # Define global constants. These values will be
-    # transferred by NUMBA to the GPU, global read-only constants
+    # Define global constants. These values will be transferred by NUMBA to the GPU, as global read-only constants
     PRECURSOR_SHIFT = precursor_shift
     if PRECURSOR_SHIFT:
+        # We need twice the match limit for the same 
         MATCH_LIMIT = match_limit * 2
+        # modified cosine benefits from running in float64
+        FLOAT = numba.float64
     else:
         MATCH_LIMIT = match_limit
+        # float32 is more than enough for simple greedy cosine
+        FLOAT = numba.float32
     SHIFT = shift
     MZ_POWER = mz_power
     INT_POWER = int_power
@@ -73,19 +77,13 @@ def cosine_greedy_kernel(
     BLOCKS_PER_GRID_Y = (Q + THREADS_PER_BLOCK_Y - 1) // THREADS_PER_BLOCK_Y
     BLOCKS_PER_GRID = (BLOCKS_PER_GRID_X, BLOCKS_PER_GRID_Y)
 
-    # It is recommended to use float64 for modified cosine calculations
-    # since the error can be 
-    if PRECURSOR_SHIFT:
-        FLOAT = numba.float64
-    else:
-        FLOAT = numba.float32
-
     # If the user forces the dtype, we oblige
     if spectra_dtype is not None:
         FLOAT = numba.types.Float(spectra_dtype)
 
     # Arguments: matched peaks [match_limit], peak value [match_limit], and return values [2]
-    @cuda.jit(int32(int32, int32, FLOAT[:,:,::1], FLOAT[:,:,::1], FLOAT[:,::1], int32[::1], FLOAT[::1]), device=True, inline=True)
+    @cuda.jit(int32(int32, int32, FLOAT[:,:,::1], FLOAT[:,:,::1], FLOAT[:,::1], 
+                    int32[::1], float32[::1]), device=True, inline=True)
     def collect_peak_pairs(
             # Inputs
             reference_i, query_j, rspec, qspec, metadata,
@@ -155,7 +153,8 @@ def cosine_greedy_kernel(
         return num_match
 
     # Arguments: matched peaks [match_limit], peak value [match_limit], and return values [2]
-    @cuda.jit(int32(int32, int32, FLOAT[:,:,::1], FLOAT[:,:,::1], FLOAT[:,::1], int32[::1], FLOAT[::1]), device=True, inline=True)
+    @cuda.jit(int32(int32, int32, FLOAT[:,:,::1], FLOAT[:,:,::1], FLOAT[:,::1], 
+                    int32[::1], float32[::1]), device=True, inline=True)
     def collect_shifted_peak_pairs(
             # Inputs
             reference_i, query_j, rspec, qspec, metadata,
@@ -255,10 +254,10 @@ def cosine_greedy_kernel(
         return num_match
     
 
-    @cuda.jit(device=True, inline=True)
+    @cuda.jit(void(int32[::1], float32[::1], int32),device=True, inline=True)
     def sort_peaks_by_value(matches, values, num_match):
         temp_matches = cuda.local.array(MATCH_LIMIT, types.int32)
-        temp_values = cuda.local.array(MATCH_LIMIT, FLOAT)
+        temp_values = cuda.local.array(MATCH_LIMIT, types.float32)
 
         # k is an expanding window of sorting. We initially sort single (size-1) elements,
         # At this point, all 2-tuples in the array are themselves sorted. We then double the sorting window (to 2)
@@ -360,15 +359,17 @@ def cosine_greedy_kernel(
         # These will store peak indices (r_idx, q_idx) and peak contributions (float) respectively
 
         matches = cuda.local.array(MATCH_LIMIT, types.int32)
-        values = cuda.local.array(MATCH_LIMIT, FLOAT)
+        values = cuda.local.array(MATCH_LIMIT, types.float32)
 
         ### FIND MATCHES
         if PRECURSOR_SHIFT:
+            # If we want a modified cosine, use both peaks, shifted and unshifted
             num_match = collect_shifted_peak_pairs(
                         i, j, rspec, qspec, metadata,
                         matches, values
                         )
         else:
+            # If we want a regular greedy cosine, use another function.
             num_match = collect_peak_pairs(
                             i, j, rspec, qspec, metadata, 
                             matches, values
