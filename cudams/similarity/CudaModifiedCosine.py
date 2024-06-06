@@ -277,7 +277,7 @@ class CudaModifiedCosine(BaseSimilarity):
         assert array_type in [
             "numpy",
             "sparse",
-        ], "Invalid array_type. Use 'numpy' or 'sparse'."
+        ], f"Invalid array_type '{array_type}'. Use 'numpy' or 'sparse'."
 
         # Initialize batched inputs
         batched_inputs = self._get_batches(references=references, queries=queries)
@@ -394,8 +394,7 @@ class CudaModifiedCosine(BaseSimilarity):
             elif array_type == "sparse":
                 sp = StackedSparseArray(len(references), len(queries))
                 sparse_data = []
-
-                for bunch in tqdm(result, disable=not self.verbose):
+                for bunch in result:
                     sparse_data.append(
                         (
                             bunch["rabs"],
@@ -408,11 +407,16 @@ class CudaModifiedCosine(BaseSimilarity):
 
                 if sparse_data:
                     r, q, s, m, o = zip(*sparse_data)
+                    r = np.concatenate(r)
+                    q = np.concatenate(q)
+                    print(len(r), r, r.max(), r.min())
+                    print(len(q), q, q.max(), q.min())
                     sp.add_sparse_data(
-                        np.array(r),
-                        np.array(q),
+                        r, q,
                         np.rec.fromarrays(
-                            arrayList=[np.array(s), np.array(m), np.array(o)],
+                            arrayList=[np.concatenate(s), 
+                                       np.concatenate(m), 
+                                       np.concatenate(o)],
                             names=["score", "matches", "overflow"],
                         ),
                         name="sparse",

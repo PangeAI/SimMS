@@ -115,3 +115,20 @@ Use [this template](https://cloud.vast.ai/?ref_id=51575&template_id=f45f6048db51
 ```
 pip install git+https://github.com/PangeAI/cudams
 ```
+# Frequently asked questions
+
+### I want to get `referenece_id`, `query_id` and `score` as 1D arrays, separately. How do I do this?
+
+Use the `"sparse"` mode. It directly gives you the columns. You can set `sparse_threshold` to `0`, at which point you will get *all* the scores.
+
+```py
+from cudams.similarity import CudaCosineGreedy
+
+scores_cu = CudaCosineGreedy(
+    sparse_threshold=0.75, # anything with a lower score gets discarded
+).matrix(references, queries, array_type='sparse')
+
+ref_id, query_id, scores = scores_cu['sparse_score'] # ref ID, query ID, score
+ref_id, query_id, matches = scores_cu['sparse_matches'] # ref ID, query ID, matches
+```
+

@@ -299,7 +299,7 @@ def cosine_greedy_kernel(
                     values[m] = temp_values[m]
             k *= 2
     # Arguments are: References [2 (m/z, intensity), batch_size, n_max_peaks], Queries [Same], 
-    # lengths [2 (r length, q length), batch_size], norms [2 (r norm, q_norm), batch_size], outputs [3 (score, matches, overflow), batch_size, batch_size]
+    # metadata: [4, B] or [6, B], lengths, norms, and optionally precursor m/zs
     # The signature float32[:,:,::1] means a 3D contiguous Float32 array, with row-major ordering.
     @cuda.jit(
         void(FLOAT[:,:,::1], FLOAT[:,:,::1], FLOAT[:,::1], float32[:,:,::1])

@@ -110,6 +110,7 @@ class CudaCosineGreedy(BaseSimilarity):
         self.verbose = verbose
         self.n_max_peaks = n_max_peaks
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        assert sparse_threshold > 0, "Sparse threshold has to be greather than 0."
         self.sparse_threshold = sparse_threshold
 
         # Compile kernel function
@@ -334,26 +335,28 @@ class CudaCosineGreedy(BaseSimilarity):
                 # Convert output to tensor
                 out = torch.as_tensor(out)
 
+                out = out[:, :len(rlen), :len(qlen)]
+
                 # Populate result based on array_type
                 if array_type == "numpy":
-                    result[:, rstart:rend, qstart:qend] = out[
-                        :, : len(rlen), : len(qlen)
-                    ]
+                    result[:, rstart:rend, qstart:qend] = out
+                    
                 elif array_type == "sparse":
                     mask = out[0] >= self.sparse_threshold
-                    row, col = torch.nonzero(mask, as_tuple=True)
-                    rabs = (rstart + row).cpu()
-                    qabs = (qstart + col).cpu()
-                    score, matches, overflow = out[:, mask].cpu()
-                    result.append(
-                        dict(
-                            rabs=rabs.int().cpu().numpy(),
-                            qabs=qabs.int().cpu().numpy(),
-                            score=score.float().cpu().numpy(),
-                            matches=matches.int().cpu().numpy(),
-                            overflow=overflow.bool().cpu().numpy(),
+                    if mask.any():
+                        row, col = torch.nonzero(mask, as_tuple=True)
+                        rabs = (rstart + row).cpu()
+                        qabs = (qstart + col).cpu()
+                        score, matches, overflow = out[:, mask].cpu()
+                        result.append(
+                            dict(
+                                rabs=rabs.int().cpu().numpy(),
+                                qabs=qabs.int().cpu().numpy(),
+                                score=score.float().cpu().numpy(),
+                                matches=matches.int().cpu().numpy(),
+                                overflow=overflow.bool().cpu().numpy(),
+                            )
                         )
-                    )
 
             # Return result based on array_type
             if array_type == "numpy":
@@ -364,8 +367,7 @@ class CudaCosineGreedy(BaseSimilarity):
             elif array_type == "sparse":
                 sp = StackedSparseArray(len(references), len(queries))
                 sparse_data = []
-
-                for bunch in tqdm(result, disable=not self.verbose):
+                for bunch in result:
                     sparse_data.append(
                         (
                             bunch["rabs"],
@@ -378,11 +380,14 @@ class CudaCosineGreedy(BaseSimilarity):
 
                 if sparse_data:
                     r, q, s, m, o = zip(*sparse_data)
+                    r = np.concatenate(r)
+                    q = np.concatenate(q)
                     sp.add_sparse_data(
-                        np.array(r),
-                        np.array(q),
+                        r, q,
                         np.rec.fromarrays(
-                            arrayList=[np.array(s), np.array(m), np.array(o)],
+                            arrayList=[np.concatenate(s), 
+                                       np.concatenate(m), 
+                                       np.concatenate(o)],
                             names=["score", "matches", "overflow"],
                         ),
                         name="sparse",
