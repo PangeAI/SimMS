@@ -10,58 +10,23 @@ from numba import cuda
 from sparsestack import StackedSparseArray
 from tqdm import tqdm
 from ..utils import argbatch
-from .spectrum_similarity_functions import cosine_greedy_kernel
+from .spectrum_similarity_functions import cosine_kernel
 
 
 class CudaCosineGreedy(BaseSimilarity):
     """
-    Calculate 'cosine similarity score' between two spectra using CUDA acceleration.
+    Calculate cosine similarity score between two spectra using CUDA acceleration.
 
-    CudaCosineGreedy calculates the cosine similarity score between two mass spectra
-    using CUDA acceleration. The score is calculated by finding the best possible
-    matches between peaks of two spectra. It provides a 'greedy' solution for the
-    peak assignment problem, aimed at faster performance.
+    The score is calculated by finding the best possible matches between peaks of two spectra. 
+    It provides a 'greedy' solution for the peak assignment problem, aimed at faster performance. 
 
-    Parameters:
-    -----------
-    tolerance : float, optional
-        Tolerance for considering peaks as matching, by default 0.1.
-    mz_power : float, optional
-        Exponent for m/z values in similarity score calculation, by default 0.0.
-    intensity_power : float, optional
-        Exponent for intensity values in similarity score calculation, by default 1.0.
-    shift : float, optional
-        Value to shift m/z values, by default 0.
-    batch_size : int, optional
-        Batch size for processing spectra, by default 2048.
-    n_max_peaks : int, optional
-        Maximum number of peaks to consider in each spectrum, by default 1024.
-    match_limit : int, optional
-        Limit on the number of matches allowed, by default 2048.
-    sparse_threshold : float, optional
-        Threshold for considering scores in sparse output, by default 0.75.
-    verbose : bool, optional
-        Verbosity flag, by default False.
-
-    Attributes:
-    -----------
-    kernel_time : float
-        Time taken by the CUDA kernel for computation.
-    device : str
-        Device used for computation, either 'cuda' or 'cpu'.
-
-    Methods:
-    --------
-    pair(reference: Spectrum, query: Spectrum) -> float:
-        Calculate the cosine similarity score between a reference and a query spectrum.
-    matrix(references: List[Spectrum], queries: List[Spectrum], array_type: Literal["numpy", "sparse"] = "numpy", is_symmetric: bool = False) -> np.ndarray:
-        Calculate a matrix of similarity scores between reference and query spectra.
-    """
+    This implementation is meant to replicate outputs of `matchms.similarity.CosineGreedy`.
+"""
 
     score_datatype = [
         ("score", np.float32),
         ("matches", np.int32),
-        ("overflow", np.uint8),
+        ("overflow", np.bool_),
     ]
 
     def __init__(
@@ -100,6 +65,11 @@ class CudaCosineGreedy(BaseSimilarity):
         verbose : bool, optional
             Verbosity flag, by default False.
         """
+
+        # Warn if CUDA device is unavailable
+        if not cuda.is_available():
+            warnings.warn(f"{self.__class__.__name__}: CUDA device seems unavailable.")
+
         # Initialize parameters
         self.tolerance = tolerance
         self.mz_power = mz_power
@@ -110,11 +80,13 @@ class CudaCosineGreedy(BaseSimilarity):
         self.verbose = verbose
         self.n_max_peaks = n_max_peaks
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        assert sparse_threshold > 0, "Sparse threshold has to be greather than 0."
+
+        assert (0 <= sparse_threshold <= 1), "Sparse threshold has to be greather than 0."
+
         self.sparse_threshold = sparse_threshold
 
         # Compile kernel function
-        self.kernel = cosine_greedy_kernel(
+        self.kernel = cosine_kernel(
             tolerance=self.tolerance,
             shift=self.shift,
             mz_power=self.mz_power,
@@ -122,11 +94,8 @@ class CudaCosineGreedy(BaseSimilarity):
             match_limit=self.match_limit,
             batch_size=self.batch_size,
             n_max_peaks=self.n_max_peaks,
+            spectra_dtype='float32',
         )
-
-        # Warn if CUDA device is unavailable
-        if not cuda.is_available():
-            warnings.warn(f"{self.__class__.__name__}: CUDA device seems unavailable.")
 
     def _spectra_peaks_to_tensor(
         self,
@@ -201,8 +170,9 @@ class CudaCosineGreedy(BaseSimilarity):
 
     def pair(self, reference: Spectrum, query: Spectrum) -> float:
         """
-        Calculate the cosine similarity score between a reference and a query spectrum. Used for testing only.
-
+        Do not use - it is very inefficient, and used for testing purposes only. 
+        Calculates the cosine similarity score between a reference and a query spectrum.
+        
         Parameters:
         -----------
         reference : Spectrum
@@ -227,7 +197,7 @@ class CudaCosineGreedy(BaseSimilarity):
     ) -> Union[np.ndarray, StackedSparseArray]:
         """
         Calculate a matrix of similarity scores between reference and query spectra.
-
+        
         Parameters:
         -----------
         references : List[Spectrum]
@@ -237,12 +207,14 @@ class CudaCosineGreedy(BaseSimilarity):
         array_type : Literal["numpy", "sparse"], optional
             Specify the output array type, by default "numpy".
         is_symmetric : bool, optional
-            Set to True when references and queries are identical, by default False.
+            Unused. This unused argument is left is for compatibility reasons.
 
         Returns:
         --------
-        np.ndarray or StackedSparseArray, depending on `array_type` argument.
+        Score : Union[np.ndarray, StackedSparseArray]
             Matrix of similarity scores between reference and query spectra.
+            Type of Score depends on on `array_type` argument, with "sparse" array_type 
+            returning a `sparsestack.StackedSparseArray`
         """
         # Warn if is_symmetric is passed
         if is_symmetric:
@@ -254,10 +226,9 @@ class CudaCosineGreedy(BaseSimilarity):
             "sparse",
         ], "Invalid array_type. Use 'numpy' or 'sparse'."
 
-        R, Q = len(references), len(queries)
-
         # Initialize batched inputs
         batched_inputs = self._get_batches(references=references, queries=queries)
+        R, Q = len(references), len(queries)
 
         # Initialize result variable based on array_type
         if array_type == "numpy":

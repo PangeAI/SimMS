@@ -3,25 +3,64 @@ Defines CUDA kernels written in Numba API.
 """
 
 import warnings
-from typing import Literal, Optional
+from typing import Literal, Optional, Callable
 import numba
+from functools import wraps
 from numba import cuda, float32, float64, int32, types, void
 
+def kernel_wrapper(
+    blocks_per_grid, 
+    threads_per_block
+) -> None:
+    """
+    Convenience wrapper around numba cuda kernel. Launches the CUDA kernel for with given grid/thread dimensions.
+    """
+    def decorator(kernel_fn):
+        @wraps(kernel_fn)
+        def kernel(
+            rspec,
+            qspec,
+            metadata,
+            out,
+            stream: cuda.stream = None):
+            """
+            Parameters:
+            -----------
+            rspec : cuda.devicearray
+                Array containing reference spectra data.
+            qspec_cu : cuda.devicearray
+                Array containing query spectra data.
+            lens_cu : cuda.devicearray
+                Array containing lengths of spectra.
+            out_cu : cuda.devicearray
+                Precalculated norms for each R and Q
+            stream : cuda.stream, optional
+                CUDA stream for asynchronous execution, by default None.
+            """
+            kernel_fn[blocks_per_grid, threads_per_block, stream](
+                rspec,
+                qspec,
+                metadata,
+                out,
+            )
+        return kernel
+    return decorator
 
-def cosine_greedy_kernel(
+def cosine_kernel(
     tolerance: float = 0.1,
     shift: float = 0,
     mz_power: float = 0.0,
     int_power: float = 1.0,
+    precursor_shift: bool = False,
+    is_symmetric: bool = False,
     match_limit: int = 1024,
     batch_size: int = 2048,
     n_max_peaks: int = 2048,
-    is_symmetric: bool = False,
-    precursor_shift: bool = False,
-    spectra_dtype: Optional[str] = None,
-) -> callable:
+    spectra_dtype: Literal['float32', 'float64'] = 'float32',
+) -> Callable:
     """
     Compiles and returns a CUDA kernel function for calculating cosine similarity scores between spectra.
+    Depending on the `precursor_shift` argument, resulting kernel behaves like modified cosine or cosine greedy.
 
     Parameters:
     -----------
@@ -33,17 +72,20 @@ def cosine_greedy_kernel(
         Power parameter for m/z intensity calculation, by default 0.
     int_power : float, optional
         Power parameter for intensity calculation, by default 1.
-    match_limit : int, optional
-        Maximum number of matches to consider, by default 1024.
-    batch_size : int, optional
-        Batch size for processing spectra, by default 2048.
-    n_max_peaks : int, optional
-        Maximum number of peaks to consider, by default 2048.
+    precursor_shift: bool
+        When True, calculates `ModifiedCosine`, when false, calculates `CosineGreedy`.
     is_symmetric : bool, optional
-        Flag indicating if the similarity matrix is symmetric, by default False.
-    dtype:
-        By default, we use float32 for greedy cosine and float64 for modified cosine. This can be overridden. Accepts 
-        arguments of type `numba.types.Float`
+        Unused. Flag indicating if the similarity matrix is symmetric, but we don't use it.
+    match_limit : int, optional
+        Maximum number of matches to consider per peak, by default 1024.
+    batch_size : int, optional
+        Batch size for simultaneous pairwise processing spectra, by default, 2048. Newer hardware (RTX4090) fares better with larger values,
+        And older (T4), with smaller values. 
+    n_max_peaks : int, optional
+        Maximum number of peaks to consider per spectra, by default 2048.
+    spectra_dtype: str, optional
+        Float dtype to use for representing peaks. float32 is faster, but precision-related errors are slightly more common.
+        By default, we use float32 for greedy cosine and float64 for modified cosine.
     Returns:
     --------
     callable
@@ -55,15 +97,18 @@ def cosine_greedy_kernel(
 
     # Define global constants. These values will be transferred by NUMBA to the GPU, as global read-only constants
     PRECURSOR_SHIFT = precursor_shift
+
     if PRECURSOR_SHIFT:
-        # We need twice the match limit for the same 
+        # We need twice the match limit for modified cosine for the same accuracy
         MATCH_LIMIT = match_limit * 2
-        # modified cosine benefits from running in float64
-        FLOAT = numba.float64
     else:
         MATCH_LIMIT = match_limit
-        # float32 is more than enough for simple greedy cosine
-        FLOAT = numba.float32
+
+    assert precursor_shift is False or shift == 0, "When working with precursor_shift=True mode, specifying shift != 0 is meaningless."
+
+    if precursor_shift is True and spectra_dtype != 'float64':
+        warnings.warn("When working with precursor_shift=True mode, using spectra_dtype=float64 is recommended")
+
     SHIFT = shift
     MZ_POWER = mz_power
     INT_POWER = int_power
@@ -76,14 +121,15 @@ def cosine_greedy_kernel(
     BLOCKS_PER_GRID_X = (R + THREADS_PER_BLOCK_X - 1) // THREADS_PER_BLOCK_X
     BLOCKS_PER_GRID_Y = (Q + THREADS_PER_BLOCK_Y - 1) // THREADS_PER_BLOCK_Y
     BLOCKS_PER_GRID = (BLOCKS_PER_GRID_X, BLOCKS_PER_GRID_Y)
-
-    # If the user forces the dtype, we oblige
-    if spectra_dtype is not None:
-        FLOAT = numba.types.Float(spectra_dtype)
+    FLOAT = numba.types.Float(spectra_dtype)
 
     # Arguments: matched peaks [match_limit], peak value [match_limit], and return values [2]
-    @cuda.jit(int32(int32, int32, FLOAT[:,:,::1], FLOAT[:,:,::1], FLOAT[:,::1], 
-                    int32[::1], float32[::1]), device=True, inline=True)
+    @cuda.jit(int32(
+            # Inputs
+            int32, int32, FLOAT[:,:,::1], FLOAT[:,:,::1], FLOAT[:,::1], 
+            # Outputs
+            int32[::1], float32[::1]),
+        device=True, inline=True)
     def collect_peak_pairs(
             # Inputs
             reference_i, query_j, rspec, qspec, metadata,
@@ -153,8 +199,12 @@ def cosine_greedy_kernel(
         return num_match
 
     # Arguments: matched peaks [match_limit], peak value [match_limit], and return values [2]
-    @cuda.jit(int32(int32, int32, FLOAT[:,:,::1], FLOAT[:,:,::1], FLOAT[:,::1], 
-                    int32[::1], float32[::1]), device=True, inline=True)
+    @cuda.jit(int32(
+            # Inputs
+            int32, int32, FLOAT[:,:,::1], FLOAT[:,:,::1], FLOAT[:,::1], 
+            # Outputs
+            int32[::1], float32[::1]), 
+        device=True, inline=True)
     def collect_shifted_peak_pairs(
             # Inputs
             reference_i, query_j, rspec, qspec, metadata,
@@ -298,9 +348,9 @@ def cosine_greedy_kernel(
                     matches[m] = temp_matches[m]
                     values[m] = temp_values[m]
             k *= 2
-    # Arguments are: References [2 (m/z, intensity), batch_size, n_max_peaks], Queries [Same], 
-    # metadata: [4, B] or [6, B], lengths, norms, and optionally precursor m/zs
-    # The signature float32[:,:,::1] means a 3D contiguous Float32 array, with row-major ordering.
+    
+
+    @kernel_wrapper(blocks_per_grid=BLOCKS_PER_GRID, threads_per_block=THREADS_PER_BLOCK)
     @cuda.jit(
         void(FLOAT[:,:,::1], FLOAT[:,:,::1], FLOAT[:,::1], float32[:,:,::1])
     )
@@ -321,14 +371,16 @@ def cosine_greedy_kernel(
             Stores mz (0th slice), and intensity (1st slice).
         qspec : cuda.devicearray
             Same structure as rspec.
-        lens : cuda.devicearray
-            Number of peaks in both spectra batches. Integer tensor. Shape [2, batch_size]. Zero padded, when number of spectra are not divisible by
-            batch size and we are processing the edge-batches.
-        norms : cuda.devicearray
-            Contains a pre-computed norm for both spectra batches. Float tensor. Shape [2, batch_size].
+        metadata:
+            Array containing information about rspec and qspec. In precursor_shift=False mode, it is of shape [4, batch_size], 
+            and [6, batch_size] otherwise. For rspec and qspec, it contains:
+            - lens: Number of peaks in both spectra batches. Integer tensor. Shape [2, batch_size]. Zero padded, when number of spectra are not divisible by
+                batch size and we are processing the edge-batches.
+            - norms: Contains a pre-computed norm for both spectra batches. Float tensor. Shape [2, batch_size].
+            - Optionally for precursor_shift=True, contains precursor shifts, [2, batch_size], once for each spectrum in batch
         out : cuda.devicearray
             Stores results. Float tensor. Shape [batch_size, batch_size, 3].
-            The last dimention (3) contains: score, matches, overflow.
+            The last dimention (3) contains: score, matches, overflow. All values are returned as floats, and have to be dtype casted.
 
         The kernel is designed to efficiently compute cosine similarity scores
         between reference and query spectra by relying on CUDA parallelization.
@@ -381,6 +433,7 @@ def cosine_greedy_kernel(
         # We store the overflow flag inside num_match, when it's negative, it's overflown.
         if num_match < 0:
             out[2, i, j] = 1.0
+
         # Correct the negative regardless
         num_match = abs(num_match)
 
@@ -460,35 +513,4 @@ def cosine_greedy_kernel(
         #     else:
         #         break
 
-    def kernel(
-        rspec,
-        qspec,
-        metadata,
-        out,
-        stream: cuda.stream = None,
-    ) -> None:
-        """
-        Launches the CUDA kernel for calculating cosine similarity scores.
-
-        Parameters:
-        -----------
-        rspec : cuda.devicearray
-            Array containing reference spectra data.
-        qspec_cu : cuda.devicearray
-            Array containing query spectra data.
-        lens_cu : cuda.devicearray
-            Array containing lengths of spectra.
-        out_cu : cuda.devicearray
-            Precalculated norms for each R and Q
-        stream : cuda.stream, optional
-            CUDA stream for asynchronous execution, by default None.
-        """
-        
-        _kernel[BLOCKS_PER_GRID, THREADS_PER_BLOCK, stream](
-            rspec,
-            qspec,
-            metadata,
-            out,
-        )
-
-    return kernel
+    return _kernel

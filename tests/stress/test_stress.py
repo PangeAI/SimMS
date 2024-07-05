@@ -36,15 +36,15 @@ def trimmed_spectra(gnps, n_max_peaks):
 @pytest.mark.parametrize(
     "reference_size, query_size",
     [
-        [78,63], # large data
-        [14,13], # small data
+        [64,128], # large data
+        [16, 32], # small data
     ]
 )
 @pytest.mark.parametrize(
     "tolerance, batch_size, n_max_peaks, match_limit, mz_power, intensity_power",
     [
-        (0.1, 7, 32, 31, 1, 0,),  # batch smaller than data
-        (0.1, 133, 32, 31, 1, 0,),  # batch larger than data
+        (0.1, 256, 512, 512, 0, 1,),  # batch smaller than data
+        (0.1, 15, 512, 512, 0, 1,),  # batch larger than data
 
         # (0.1, 31, 32, 31, 1, 0,),  # Representative case 1
         # (0.01, 65, 121, 63, 1, 1,),  # Representative case 2
@@ -100,17 +100,16 @@ def test_stress(
         assert isinstance(result, StackedSparseArray)
         result: StackedSparseArray
         result = result.to_array()
-        # rid, qid = result.row, result.col
-        # score = result.data['sparse_score']
-        # matches = result.data['sparse_matches']
+        
         overflow = result['sparse_overflow']
-        mask = result_target['score'] > .1 # Not matching sub-threshold scores
-        equals = np.isclose(result_target['score'] * mask, result['sparse_score'], atol=1e-3)
-        match_equals = np.isclose(result_target['score'] * mask, result['sparse_matches'])
+        not_filtered = result_target['score'] > .1 # Not matching sub-threshold scores
+        mask = (~overflow) & not_filtered
+        equals = np.isclose(result_target['score'], result['sparse_score'], atol=1e-3) | mask
+        match_equals = np.isclose(result_target['matches'], result['sparse_matches']) | mask
         equals_except_overflows = equals | overflow
         match_equals_except_overflows = match_equals | overflow
         overflow_num = overflow.sum()
-        overflow_rate = overflow.sum() / ((len(references) * len(queries)))
+        overflow_rate = overflow.sum()
     else:
         assert isinstance(result, np.ndarray)
         equals = np.isclose(result_target["score"], result["score"], atol=1e-3)

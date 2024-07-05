@@ -128,7 +128,8 @@ scores_cu = CudaCosineGreedy(
     sparse_threshold=0.75, # anything with a lower score gets discarded
 ).matrix(references, queries, array_type='sparse')
 
-ref_id, query_id, scores = scores_cu['sparse_score'] # ref ID, query ID, score
-ref_id, query_id, matches = scores_cu['sparse_matches'] # ref ID, query ID, matches
+# Unpack sparse results as 1D arrays
+ref_id, query_id, scores = scores_cu.data['sparse_score']
+ref_id, query_id, matches = scores_cu.data['sparse_matches']
 ```
 

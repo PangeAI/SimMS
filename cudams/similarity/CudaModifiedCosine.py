@@ -12,7 +12,7 @@ from numba import cuda
 from sparsestack import StackedSparseArray
 from tqdm import tqdm
 from ..utils import argbatch
-from .spectrum_similarity_functions import cosine_greedy_kernel
+from .spectrum_similarity_functions import cosine_kernel
 
 
 logger = logging.getLogger("cudams")
@@ -39,51 +39,24 @@ def get_valid_precursor_mz(spectrum):
 
 class CudaModifiedCosine(BaseSimilarity):
     """
-    Calculate 'cosine similarity score' between two spectra using CUDA acceleration.
+    Calculate modified cosine score between mass spectra using CUDA acceleration.
 
-    CudaModifiedCosine calculates the cosine similarity score between two mass spectra
-    using CUDA acceleration. The score is calculated by finding the best possible
-    matches between peaks of two spectra. It provides a 'greedy' solution for the
-    peak assignment problem, aimed at faster performance.
+    The modified cosine score aims at quantifying the similarity between two
+    mass spectra. The score is calculated by finding best possible matches between
+    peaks of two spectra. Two peaks are considered a potential match if their
+    m/z ratios lie within the given 'tolerance', or if their m/z ratios
+    lie within the tolerance once a mass-shift is applied. The mass shift is
+    simply the difference in precursor-m/z between the two spectra.
+    See Watrous et al. [PNAS, 2012, https://www.pnas.org/content/109/26/E1743]
+    for further details.
 
-    Parameters:
-    -----------
-    tolerance : float, optional
-        Tolerance for considering peaks as matching, by default 0.1.
-    mz_power : float, optional
-        Exponent for m/z values in similarity score calculation, by default 0.0.
-    intensity_power : float, optional
-        Exponent for intensity values in similarity score calculation, by default 1.0.
-    batch_size : int, optional
-        Batch size for processing spectra, by default 2048.
-    n_max_peaks : int, optional
-        Maximum number of peaks to consider in each spectrum, by default 1024.
-    match_limit : int, optional
-        Limit on the number of matches allowed, by default 2048.
-    sparse_threshold : float, optional
-        Threshold for considering scores in sparse output, by default 0.75.
-    verbose : bool, optional
-        Verbosity flag, by default False.
-
-    Attributes:
-    -----------
-    kernel_time : float
-        Time taken by the CUDA kernel for computation.
-    device : str
-        Device used for computation, either 'cuda' or 'cpu'.
-
-    Methods:
-    --------
-    pair(reference: Spectrum, query: Spectrum) -> float:
-        Calculate the cosine similarity score between a reference and a query spectrum.
-    matrix(references: List[Spectrum], queries: List[Spectrum], array_type: Literal["numpy", "sparse"] = "numpy", is_symmetric: bool = False) -> np.ndarray:
-        Calculate a matrix of similarity scores between reference and query spectra.
+    This implementation is meant to replicate outputs of `matchms.similarity.ModifiedCosine`.
     """
 
     score_datatype = [
         ("score", np.float32),
         ("matches", np.int32),
-        ("overflow", np.uint8),
+        ("overflow", np.bool_),
     ]
 
     def __init__(
@@ -120,8 +93,7 @@ class CudaModifiedCosine(BaseSimilarity):
         verbose : bool, optional
             Verbosity flag, by default False.
         spectra_dtype : str, optional
-            What dtype to use to process the spectral information. float32 works best for greedy cosine, but
-            for modified cosine, float64 might be more preferable. 
+            What dtype to use to process the spectral information. Default float64.
         """
 
         # Warn if CUDA device is unavailable
@@ -136,13 +108,16 @@ class CudaModifiedCosine(BaseSimilarity):
         self.match_limit = match_limit
         self.verbose = verbose
         self.n_max_peaks = n_max_peaks
+
+        assert (0 <= sparse_threshold <= 1), "Sparse threshold has to be greather than 0."
+
         self.sparse_threshold = sparse_threshold
         self.spectra_dtype = spectra_dtype
         
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         # Compile kernel function
-        self.kernel = cosine_greedy_kernel(
+        self.kernel = cosine_kernel(
             tolerance=self.tolerance,
             mz_power=self.mz_power,
             int_power=self.int_power,
@@ -150,6 +125,7 @@ class CudaModifiedCosine(BaseSimilarity):
             batch_size=self.batch_size,
             n_max_peaks=self.n_max_peaks,
             precursor_shift=True,
+            spectra_dtype=self.spectra_dtype,
         )
 
     def _spectra_peaks_to_tensor(
@@ -226,8 +202,9 @@ class CudaModifiedCosine(BaseSimilarity):
 
     def pair(self, reference: Spectrum, query: Spectrum) -> float:
         """
-        Calculate the cosine similarity score between a reference and a query spectrum. Used for testing only.
-
+        Do not use - it is very inefficient, and used for testing purposes only. 
+        Calculates the modified cosine similarity score between a reference and a query spectrum.
+        
         Parameters:
         -----------
         reference : Spectrum
@@ -238,7 +215,7 @@ class CudaModifiedCosine(BaseSimilarity):
         Returns:
         --------
         float
-            Cosine similarity score between the reference and query spectra.
+            Modified cosine similarity score between the reference and query spectra.
         """
         result_mat = self.matrix([reference], [query])
         return np.asarray(result_mat.squeeze(), dtype=self.score_datatype)
@@ -252,7 +229,7 @@ class CudaModifiedCosine(BaseSimilarity):
     ) -> Union[np.ndarray, StackedSparseArray]:
         """
         Calculate a matrix of similarity scores between reference and query spectra.
-
+        
         Parameters:
         -----------
         references : List[Spectrum]
@@ -262,12 +239,14 @@ class CudaModifiedCosine(BaseSimilarity):
         array_type : Literal["numpy", "sparse"], optional
             Specify the output array type, by default "numpy".
         is_symmetric : bool, optional
-            Set to True when references and queries are identical, by default False.
+            Unused. This unused argument is left is for compatibility reasons.
 
         Returns:
         --------
-        np.ndarray or StackedSparseArray, depending on `array_type` argument.
+        Score : Union[np.ndarray, StackedSparseArray]
             Matrix of similarity scores between reference and query spectra.
+            Type of Score depends on on `array_type` argument, with "sparse" array_type 
+            returning a `sparsestack.StackedSparseArray`
         """
         # Warn if is_symmetric is passed
         if is_symmetric:
@@ -351,8 +330,7 @@ class CudaModifiedCosine(BaseSimilarity):
                     device=self.device,
                 )
 
-                # Convert tensors to Numba CUDA arrays. 
-                # We need DOUBLE since 
+                # Convert tensors to Numba CUDA arrays
                 rspec = cuda.as_cuda_array(rspec)
                 qspec = cuda.as_cuda_array(qspec)
                 metadata = cuda.as_cuda_array(metadata)

@@ -1,13 +1,5 @@
-import math
-import numba
 import numpy as np
 import torch
-from numba import cuda, types
-from torch import Tensor
-
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
 
 def jaccard_similarity_matrix(
     references: np.ndarray, queries: np.ndarray
@@ -30,6 +22,8 @@ def jaccard_similarity_matrix(
         Matrix of all-vs-all similarity scores. scores[i, j] will contain the score
         between the vectors references[i, :] and queries[j, :].
     """
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # We know references and queries have same number of elements (bits)
     refs = (
@@ -66,21 +60,8 @@ def dice_similarity_matrix(references: np.ndarray, queries: np.ndarray) -> np.nd
         Matrix of all-vs-all similarity scores. scores[i, j] will contain the score
         between the vectors references[i, :] and queries[j, :].
     """
-    # size1 = references.shape[0]
-    # size2 = queries.shape[0]
-    # scores = np.zeros((size1, size2))
-    # for i in range(size1):
-    #     for j in range(size2):
-    #         scores[i, j] = dice_similarity(references[i, :], queries[j, :])
-    # return scores
 
-    # u_and_v = np.bitwise_and(u != 0, v != 0)
-    # u_abs_and_v_abs = np.abs(u).sum() + np.abs(v).sum()
-    # dice_score = 0
-    # if u_abs_and_v_abs != 0:
-    #     dice_score = 2.0 * np.float64(u_and_v.sum()) / np.float64(u_abs_and_v_abs)
-    # return dice_score
-
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     refs = torch.from_numpy(np.array(references)).to(device).float()  # Shape R, N
     ques = torch.from_numpy(np.array(queries)).to(device).float()  # Shape Q, N
 
@@ -111,6 +92,7 @@ def cosine_similarity_matrix(references: np.ndarray, queries: np.ndarray) -> np.
         between the vectors references[i, :] and queries[j, :].
     """
 
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     refs = torch.from_numpy(np.array(references)).to(device).float()  # R,N
     ques = torch.from_numpy(np.array(queries)).to(device).float()  # Q,N
     score = refs @ ques.T  # R, Q

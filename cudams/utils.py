@@ -171,14 +171,15 @@ def download(
     Downloaded files are cached, and not re-downloaded after the initial call.
     """
     import pooch
-
-    return pooch.retrieve(
-        # TODO: Before we fully migrate we still use old repo for file reference
-        # url=f"https://github.com/PangeAI/cudams/releases/download/samples-0.1/{name}",
-        url=f"https://github.com/tornikeo/cudams/releases/download/samples-0.1/{name}",
-        known_hash=None,
-        progressbar=True,
-    )
+    potential_local_file = Path(f'data/{name}')
+    if potential_local_file.exists():
+        return str(potential_local_file)
+    else:
+        return pooch.retrieve(
+            url=f"https://github.com/PangeAI/cudams/releases/download/sample-files/{name}",
+            known_hash=None,
+            progressbar=True,
+        )
 
 class Timer:
     def __enter__(self):
