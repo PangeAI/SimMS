@@ -9,19 +9,19 @@ from matchms.filtering import (
 from matchms.importing import load_from_mgf
 from matchms.similarity import CosineGreedy
 from numba import cuda
-from cudams.similarity import CudaCosineGreedy
-from cudams.utils import download
+from simms.similarity import CudaCosineGreedy
+from simms.utils import download
 
 
 def readme_fn():
     from matchms import calculate_scores
     from matchms.importing import load_from_mgf
-    from cudams.similarity import (
+    from simms.similarity import (
         CudaCosineGreedy,
         CudaFingerprintSimilarity,
         CudaModifiedCosine,
     )
-    from cudams.utils import download
+    from simms.utils import download
 
     sample_file = download("pesticides.mgf")
     references = list(load_from_mgf(sample_file))
@@ -50,7 +50,7 @@ def test_readme_correct():
     from matchms import calculate_scores
     from matchms.importing import load_from_mgf
     from matchms.similarity import CosineGreedy
-    from cudams.utils import download
+    from simms.utils import download
 
     sample_file = download("pesticides.mgf")  # Download sample file
     references = list(load_from_mgf(sample_file))  # Read using MatchMS

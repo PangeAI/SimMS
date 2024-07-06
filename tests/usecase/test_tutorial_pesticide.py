@@ -9,8 +9,8 @@ from matchms.filtering import (
 from matchms.importing import load_from_mgf
 from matchms.similarity import CosineGreedy
 from numba import cuda
-from cudams.similarity import CudaCosineGreedy
-from cudams.utils import download
+from simms.similarity import CudaCosineGreedy
+from simms.utils import download
 
 
 def test_tutorial_pesticide():

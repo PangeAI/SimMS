@@ -15,7 +15,7 @@ from ..utils import argbatch
 from .spectrum_similarity_functions import cosine_kernel
 
 
-logger = logging.getLogger("cudams")
+logger = logging.getLogger("simms")
 
 
 def get_valid_precursor_mz(spectrum):

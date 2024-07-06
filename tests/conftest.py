@@ -32,7 +32,7 @@ def ignore_warnings():
 @pytest.fixture(scope="session")
 @memory.cache(verbose=0)
 def gnps():
-    from cudams.utils import download
+    from simms.utils import download
     from matchms.importing import load_from_mgf
 
     spectra = tuple(load_from_mgf(download("GNPS-random-10k.mgf")))

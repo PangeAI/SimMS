@@ -1,5 +1,5 @@
-from cudams.similarity import CudaCosineGreedy
-from cudams.utils import get_correct_scores
+from simms.similarity import CudaCosineGreedy
+from simms.utils import get_correct_scores
 from matchms import Spectrum
 from matchms.similarity import CosineGreedy
 from typing import List

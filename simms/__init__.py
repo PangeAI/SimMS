@@ -25,7 +25,7 @@ if os.getenv("NUMBA_ENABLE_CUDASIM") == "1":
     cuda.as_cuda_array = fake_as_cuda_array
     cuda.event = fake_event
 
-__author__ = "CudaMS developers community"
+__author__ = "SimMS developers community"
 __email__ = "tornikeonoprishvili@gmail.com"
 __all__ = [
     "__version__",

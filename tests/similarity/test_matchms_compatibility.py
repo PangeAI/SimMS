@@ -9,12 +9,12 @@ from matchms.similarity import (
     FingerprintSimilarity,
     ModifiedCosine,
 )
-from cudams.similarity import (
+from simms.similarity import (
     CudaCosineGreedy,
     CudaFingerprintSimilarity,
     CudaModifiedCosine,
 )
-from cudams.utils import get_correct_scores
+from simms.utils import get_correct_scores
 from ..builder_Spectrum import SpectrumBuilder
 
 

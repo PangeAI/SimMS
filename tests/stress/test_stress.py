@@ -6,7 +6,7 @@ from joblib import Memory
 from matchms.filtering import reduce_to_number_of_peaks
 from matchms.similarity.BaseSimilarity import BaseSimilarity
 from matchms.similarity import CosineGreedy, ModifiedCosine
-from cudams.similarity import CudaCosineGreedy, CudaModifiedCosine
+from simms.similarity import CudaCosineGreedy, CudaModifiedCosine
 from ..utils import get_expected_cosine_greedy_score, get_expected_score
 from sparsestack import StackedSparseArray
 

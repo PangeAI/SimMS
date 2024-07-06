@@ -14,7 +14,7 @@ ENV PYTHONUNBUFFERED=1 \
 	GRADIO_THEME=huggingface \
 	SYSTEM=spaces
 
-COPY cudams/ /code/cudams/
+COPY simms/ /code/simms/
 COPY tests/ /code/tests/
 COPY README.md /code/README.md
 RUN pip install --no-cache-dir --upgrade -e .[dev]
