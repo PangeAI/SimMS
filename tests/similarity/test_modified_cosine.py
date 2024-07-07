@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from matchms import Spectrum
 from matchms.filtering import normalize_intensities
-from cudams.similarity import CudaModifiedCosine
+from simms.similarity import CudaModifiedCosine
 
 # from matchms.similarity import ModifiedCosine
 from ..builder_Spectrum import SpectrumBuilder

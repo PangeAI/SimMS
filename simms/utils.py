@@ -30,7 +30,7 @@ cache = Memory(
     "cache",
     verbose=0,
 ).cache
-logger = logging.getLogger("cudams")
+logger = logging.getLogger("simms")
 
 
 def argbatch(lst: list, batch_size: int) -> Iterable[tuple[int, int]]:
@@ -54,14 +54,6 @@ def mkdir(p: Path, clean=False) -> Path:
         shutil.rmtree(p, ignore_errors=True)
     p.mkdir(exist_ok=True, parents=True)
     return p
-
-
-@contextlib.contextmanager
-def mute_stdout():
-    save_stdout = sys.stdout
-    sys.stdout = io.BytesIO()
-    yield
-    sys.stdout = save_stdout
 
 def spectra_peaks_to_tensor(
     spectra: list,
@@ -108,49 +100,6 @@ def process_spectrum(spectrum: Spectrum) -> Optional[Spectrum]:
     spectrum = require_minimum_number_of_peaks(spectrum, n_required=5)
     return spectrum
 
-
-def get_ref_spectra_from_df(
-    spectra_df,
-    limit=None,
-    spectrum_processor: callable = process_spectrum,
-) -> list[Spectrum]:
-    """
-    Convenience function that reads a pair of CSV datasets with columns like `pbid`,`precursor_mz`, etc. and
-    returns parsed and preprocessed spectra as a list.
-    """
-    from joblib import Parallel, delayed
-
-    # for index, row in spectra_df.iterrows():
-    def fn(index, row):
-        pbid = row["pbid"]
-        precursor_mz = row["precursor_mz"]
-        smiles = row["pb_smiles"]
-        inchikey = row["pb_inchikey"]
-        mz_array = np.array(json.loads(row["peaks_mz"]))
-        intensity_array = np.array(json.loads(row["peaks_intensities"]))
-        sp = Spectrum(
-            mz=mz_array,
-            intensities=intensity_array,
-            metadata={
-                "id": pbid,
-                "precursor_mz": precursor_mz,
-                "smiles": smiles,
-                "inchikey": inchikey,
-            },
-        )
-        if spectrum_processor is not None:
-            sp = spectrum_processor(sp)
-        return sp
-
-    if limit is not None:
-        spectra_df = spectra_df.head(limit)
-    spectra = Parallel(-2)(
-        delayed(fn)(index, row)
-        for index, row in tqdm(spectra_df.iterrows(), total=len(spectra_df))
-    )
-    spectra = [s for s in spectra if s is not None]
-    return spectra
-
 def download(
     name: Literal[
         "ALL_GNPS.mgf",
@@ -167,18 +116,19 @@ def download(
     ]
 ) -> str:
     """
-    Downloads a set of sample spectra files from https://github.com/PangeAI/cudams/releases/tag/samples-0.1
+    Downloads a set of sample spectra files from https://github.com/PangeAI/simms/releases/tag/samples-0.1
     Downloaded files are cached, and not re-downloaded after the initial call.
     """
     import pooch
-
-    return pooch.retrieve(
-        # TODO: Before we fully migrate we still use old repo for file reference
-        # url=f"https://github.com/PangeAI/cudams/releases/download/samples-0.1/{name}",
-        url=f"https://github.com/tornikeo/cudams/releases/download/samples-0.1/{name}",
-        known_hash=None,
-        progressbar=True,
-    )
+    potential_local_file = Path(f'data/{name}')
+    if potential_local_file.exists():
+        return str(potential_local_file)
+    else:
+        return pooch.retrieve(
+            url=f"https://github.com/PangeAI/simms/releases/download/sample-files/{name}",
+            known_hash=None,
+            progressbar=True,
+        )
 
 class Timer:
     def __enter__(self):

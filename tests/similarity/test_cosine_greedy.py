@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from cudams.similarity import CudaCosineGreedy
+from simms.similarity import CudaCosineGreedy
 from ..builder_Spectrum import SpectrumBuilder
 
 

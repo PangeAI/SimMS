@@ -8,28 +8,26 @@ from typing import List, Literal, Optional
 import gradio as gr
 import torch
 from matchms import Spectrum
+from matchms.filtering import (
+    normalize_intensities,
+    reduce_to_number_of_peaks,
+    require_minimum_number_of_peaks,
+    select_by_intensity,
+    select_by_mz,
+    select_by_relative_intensity,
+)
 
+def process_spectrum(spectrum: Spectrum) -> Optional[Spectrum]:
+    """
+    One of the many ways to preprocess the spectrum - we use this by default.
+    """
+    spectrum = select_by_mz(spectrum, mz_from=10.0, mz_to=1000.0)
+    spectrum = normalize_intensities(spectrum)
+    spectrum = select_by_relative_intensity(spectrum, intensity_from=0.001)
+    spectrum = reduce_to_number_of_peaks(spectrum, n_max=1024)
+    return spectrum
 
 def preprocess_spectra(spectra: List[Spectrum]) -> Spectrum:
-    from matchms.filtering import (
-        normalize_intensities,
-        reduce_to_number_of_peaks,
-        require_minimum_number_of_peaks,
-        select_by_intensity,
-        select_by_mz,
-        select_by_relative_intensity,
-    )
-
-    def process_spectrum(spectrum: Spectrum) -> Optional[Spectrum]:
-        """
-        One of the many ways to preprocess the spectrum - we use this by default.
-        """
-        spectrum = select_by_mz(spectrum, mz_from=10.0, mz_to=1000.0)
-        spectrum = normalize_intensities(spectrum)
-        spectrum = select_by_relative_intensity(spectrum, intensity_from=0.001)
-        spectrum = reduce_to_number_of_peaks(spectrum, n_max=1024)
-        return spectrum
-
     spectra = list(process_spectrum(s) for s in spectra)  # Some might be None
     return spectra
 
@@ -56,7 +54,7 @@ def run(
     import numpy as np
     from matchms import calculate_scores
     from matchms.importing import load_from_mgf
-    from cudams.similarity import CudaCosineGreedy
+    from simms.similarity import CudaCosineGreedy
 
     refs = preprocess_spectra(list(load_from_mgf(str(r_filepath))))
     ques = preprocess_spectra(list(load_from_mgf(str(q_filepath))))

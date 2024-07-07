@@ -22,7 +22,7 @@ def get_expected_cosine_greedy_score(
     )
 
 
-@memory.cache
+@memory.cache(verbose=0)
 def get_expected_score(
     method: Type,
     references: tuple,

@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from matchms import Spectrum, calculate_scores
 from sparsestack import StackedSparseArray
-from cudams.similarity import CudaFingerprintSimilarity
+from simms.similarity import CudaFingerprintSimilarity
 
 
 @pytest.mark.parametrize(

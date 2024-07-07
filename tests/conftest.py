@@ -25,20 +25,18 @@ def warn_on_no_cuda():
 @pytest.fixture(autouse=True, scope="session")
 def ignore_warnings():
     import os
-
     os.environ["NUMBA_DISABLE_PERFORMANCE_WARNINGS"] = "1"
     yield
 
 
 @pytest.fixture(scope="session")
-@memory.cache
+@memory.cache(verbose=0)
 def gnps():
-    import pickle
-    from cudams.utils import download
+    from simms.utils import download
+    from matchms.importing import load_from_mgf
 
-    spectra = pickle.load(open(download("GNPS-LIBRARY.pickle"), "rb"))
+    spectra = tuple(load_from_mgf(download("GNPS-random-10k.mgf")))
     return spectra
-
 
 @pytest.fixture(scope="session")
 @memory.cache
