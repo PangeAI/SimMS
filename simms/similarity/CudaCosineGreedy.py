@@ -17,11 +17,11 @@ class CudaCosineGreedy(BaseSimilarity):
     """
     Calculate cosine similarity score between two spectra using CUDA acceleration.
 
-    The score is calculated by finding the best possible matches between peaks of two spectra. 
-    It provides a 'greedy' solution for the peak assignment problem, aimed at faster performance. 
+    The score is calculated by finding the best possible matches between peaks of two spectra.
+    It provides a 'greedy' solution for the peak assignment problem, aimed at faster performance.
 
     This implementation is meant to replicate outputs of `matchms.similarity.CosineGreedy`.
-"""
+    """
 
     score_datatype = [
         ("score", np.float32),
@@ -81,7 +81,7 @@ class CudaCosineGreedy(BaseSimilarity):
         self.n_max_peaks = n_max_peaks
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        assert (0 <= sparse_threshold <= 1), "Sparse threshold has to be greather than 0."
+        assert 0 <= sparse_threshold <= 1, "Sparse threshold has to be greather than 0."
 
         self.sparse_threshold = sparse_threshold
 
@@ -94,7 +94,7 @@ class CudaCosineGreedy(BaseSimilarity):
             match_limit=self.match_limit,
             batch_size=self.batch_size,
             n_max_peaks=self.n_max_peaks,
-            spectra_dtype='float32',
+            spectra_dtype="float32",
         )
 
     def _spectra_peaks_to_tensor(
@@ -170,9 +170,9 @@ class CudaCosineGreedy(BaseSimilarity):
 
     def pair(self, reference: Spectrum, query: Spectrum) -> float:
         """
-        Do not use - it is very inefficient, and used for testing purposes only. 
+        Do not use - it is very inefficient, and used for testing purposes only.
         Calculates the cosine similarity score between a reference and a query spectrum.
-        
+
         Parameters:
         -----------
         reference : Spectrum
@@ -197,7 +197,7 @@ class CudaCosineGreedy(BaseSimilarity):
     ) -> Union[np.ndarray, StackedSparseArray]:
         """
         Calculate a matrix of similarity scores between reference and query spectra.
-        
+
         Parameters:
         -----------
         references : List[Spectrum]
@@ -213,7 +213,7 @@ class CudaCosineGreedy(BaseSimilarity):
         --------
         Score : Union[np.ndarray, StackedSparseArray]
             Matrix of similarity scores between reference and query spectra.
-            Type of Score depends on on `array_type` argument, with "sparse" array_type 
+            Type of Score depends on on `array_type` argument, with "sparse" array_type
             returning a `sparsestack.StackedSparseArray`
         """
         # Warn if is_symmetric is passed
@@ -248,7 +248,9 @@ class CudaCosineGreedy(BaseSimilarity):
                 ) = batched_inputs[batch_i]
 
                 # Tensor holding lengths and norms
-                metadata = torch.zeros(4, self.batch_size, dtype=torch.float32, device=self.device)
+                metadata = torch.zeros(
+                    4, self.batch_size, dtype=torch.float32, device=self.device
+                )
 
                 # Convert spectra to tensors and move to device
                 rspec = torch.from_numpy(rspec).to(self.device)  # 2, R, N
@@ -279,11 +281,10 @@ class CudaCosineGreedy(BaseSimilarity):
                 )  # Q
 
                 # Create tensor for lengths, and norms
-                metadata[0, :len(rlen)] = torch.from_numpy(rlen).to(self.device)
-                metadata[1, :len(qlen)] = torch.from_numpy(qlen).to(self.device)
-                metadata[2, :len(rnorm)] = rnorm
-                metadata[3, :len(qnorm)] = qnorm
-
+                metadata[0, : len(rlen)] = torch.from_numpy(rlen).to(self.device)
+                metadata[1, : len(qlen)] = torch.from_numpy(qlen).to(self.device)
+                metadata[2, : len(rnorm)] = rnorm
+                metadata[3, : len(qnorm)] = qnorm
 
                 # Initialize output tensor
                 out = torch.empty(
@@ -306,12 +307,12 @@ class CudaCosineGreedy(BaseSimilarity):
                 # Convert output to tensor
                 out = torch.as_tensor(out)
 
-                out = out[:, :len(rlen), :len(qlen)]
+                out = out[:, : len(rlen), : len(qlen)]
 
                 # Populate result based on array_type
                 if array_type == "numpy":
                     result[:, rstart:rend, qstart:qend] = out
-                    
+
                 elif array_type == "sparse":
                     mask = out[0] >= self.sparse_threshold
                     if mask.any():
@@ -354,11 +355,14 @@ class CudaCosineGreedy(BaseSimilarity):
                     r = np.concatenate(r)
                     q = np.concatenate(q)
                     sp.add_sparse_data(
-                        r, q,
+                        r,
+                        q,
                         np.rec.fromarrays(
-                            arrayList=[np.concatenate(s), 
-                                       np.concatenate(m), 
-                                       np.concatenate(o)],
+                            arrayList=[
+                                np.concatenate(s),
+                                np.concatenate(m),
+                                np.concatenate(o),
+                            ],
                             names=["score", "matches", "overflow"],
                         ),
                         name="sparse",

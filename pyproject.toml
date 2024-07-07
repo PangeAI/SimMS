@@ -67,6 +67,12 @@ lines_after_imports = 2
 known_first_party = "simms"
 profile = "black"
 
+[tool.nbqa.mypy]
+addopts = "--ignore-missing-imports"
+
+[tool.nbqa.isort]
+addopts = "--profile=black"
+
 [tool.pytest.ini_options]
 pythonpath = [
     "."

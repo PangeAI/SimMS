@@ -3,7 +3,9 @@ repos:
     rev: 0.11.0  # Use the latest version
     hooks:
       - id: nbqa-isort
+        args: ["--nbqa-mutate"]
       - id: nbqa-black
+        args: ["--nbqa-mutate"]
   - repo: https://github.com/psf/black
     rev: 22.3.0  # Use the latest version
     hooks:
