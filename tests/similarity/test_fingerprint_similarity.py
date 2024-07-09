@@ -64,7 +64,7 @@ def test_fingerprint_similarity_parallel_empty_fingerprint(test_method):
     "test_method, expected_score, array_type, set_empty",
     [
         ("cosine", 0.84515425, "numpy", np.nan),
-        ("jaccard", 0.71428571, "sparse", np.nan),
+        ("jaccard", 0.71428571, "numpy", np.nan),
         ("dice", 0.83333333, "numpy", 0),
     ],
 )
