@@ -3,9 +3,10 @@
 
 <table>
 <tr>
-  <td>
+  <!-- Disable huggingface space until there's any demand -->
+  <!-- <td>
     <a href="https://huggingface.co/spaces/TornikeO/simms" rel="nofollow"><img src="https://camo.githubusercontent.com/5762a687b24495afb299c2c0bc68674a2a7dfca9bda6ee444b9da7617d4223a6/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f25463025394625413425393725323048756767696e67253230466163652d5370616365732d626c7565" alt="Hugging Face Spaces" data-canonical-src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue" style="max-width: 100%;"></a>
-  </td>
+  </td> -->
   <td>
     <a target="_blank" href="https://colab.research.google.com/drive/1ppcCy5gTWUaOQdnH4eXqyEn2hBaQRolR?usp=sharing">
       <img alt="Static Badge" src="https://img.shields.io/badge/colab-quickstart-blue?logo=googlecolab">
@@ -14,11 +15,6 @@
   <td>
     <a target="_blank" href="https://colab.research.google.com/github/PangeAI/simms/blob/main/notebooks/samples/upload_your_own_mgf.ipynb">
       <img alt="Static Badge" src="https://img.shields.io/badge/colab-upload_your_mgf-blue?logo=googlecolab">
-    </a>
-  </td>
-  <td>
-    <a target="_blank" href="https://colab.research.google.com/github/PangeAI/simms/blob/main/notebooks/accuracy/accuracy_vs_match_limit.ipynb">
-      <img alt="Static Badge" src="https://img.shields.io/badge/colab-comparison_with_matchms-blue?logo=googlecolab">
     </a>
   </td>
 </tr>
@@ -32,9 +28,12 @@ Calculate similarity between large number of mass spectra using a GPU. SimMS aim
   
 </div>
 
-![alt text](assets/accuracy.png)
 
-Note: CudaCosineGreedy uses fp32 format, wherease MatchMS uses fp64, and this difference causes most of the occasional errors.
+# How SimMS works, in a nutshell
+
+![alt text](assets/visual_guide.png)
+
+Comparing large sets of mass spectra is can be done in parallel, since all scores can be calculated independent of other scores. By leveraging the large number of threads in a GPU, we created a GPU program (kernel) that calculates a 4096 x 4096 similarity matrix in a fraction of a second. By iteratvely calculating similarities for batches of spectra, SimMS can quickly process datasets much larger than the GPU memory. For details, visit the [preprint](https://www.biorxiv.org/content/biorxiv/early/2024/07/25/2024.07.24.605006.full.pdf).
 
 # Quickstart
 
@@ -89,13 +88,11 @@ pangea-simms --references library.mgf --queries queries.mgf --output_file scores
 - `CudaCosineGreedy`, equivalent to [CosineGreedy](https://matchms.readthedocs.io/en/latest/_modules/matchms/similarity/CosineGreedy.html)
 - `CudaFingerprintSimilarity`, equivalent to [FingerprintSimilarity](https://matchms.readthedocs.io/en/latest/_modules/matchms/similarity/FingerprintSimilarity.html) (`jaccard`, `cosine`, `dice`)
 
-- More coming soon - requests are welcome!
+- More coming soon - **requests are welcome**!
 
 
 # Installation
-The **easiest way** to get started is to visit our [huggingface space](https://huggingface.co/spaces/TornikeO/simms), which offers a simple UI, where you can upload a pair of MGF files and run similarity calculations there (we also offer some control over parameters). 
-
-Alternatively, you can use the <a target="_blank" href="https://colab.research.google.com/github/PangeAI/simms/blob/main/notebooks/samples/colab_tutorial_pesticide.ipynb">colab notebook
+The **easiest way** to get started is to use the <a target="_blank" href="https://colab.research.google.com/github/PangeAI/simms/blob/main/notebooks/samples/colab_tutorial_pesticide.ipynb">colab notebook
 </a>  that has everything ready for you.
 
 For local installations, we recommend using [`micromamba`](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html), it is much faster. 
@@ -131,6 +128,7 @@ Use [this template](https://cloud.vast.ai/?ref_id=51575&template_id=f45f6048db51
 ```
 pip install git+https://github.com/PangeAI/simms
 ```
+
 # Frequently asked questions
 
 ### I want to get `referenece_id`, `query_id` and `score` as 1D arrays, separately. How do I do this?
