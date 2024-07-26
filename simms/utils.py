@@ -14,7 +14,6 @@ import pandas as pd
 from joblib import Memory
 from matchms import Spectrum
 from matchms.filtering import (
-    add_losses,
     normalize_intensities,
     reduce_to_number_of_peaks,
     require_minimum_number_of_peaks,
@@ -54,6 +53,7 @@ def mkdir(p: Path, clean=False) -> Path:
         shutil.rmtree(p, ignore_errors=True)
     p.mkdir(exist_ok=True, parents=True)
     return p
+
 
 def spectra_peaks_to_tensor(
     spectra: list,
@@ -100,6 +100,7 @@ def process_spectrum(spectrum: Spectrum) -> Optional[Spectrum]:
     spectrum = require_minimum_number_of_peaks(spectrum, n_required=5)
     return spectrum
 
+
 def download(
     name: Literal[
         "ALL_GNPS.mgf",
@@ -120,7 +121,8 @@ def download(
     Downloaded files are cached, and not re-downloaded after the initial call.
     """
     import pooch
-    potential_local_file = Path(f'data/{name}')
+
+    potential_local_file = Path(f"data/{name}")
     if potential_local_file.exists():
         return str(potential_local_file)
     else:
@@ -129,6 +131,7 @@ def download(
             known_hash=None,
             progressbar=True,
         )
+
 
 class Timer:
     def __enter__(self):

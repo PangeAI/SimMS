@@ -14,3 +14,7 @@ repos:
     rev: v5.10.1  # Use the latest version
     hooks:
       - id: isort
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.0.0
+    hooks:
+    -   id: flake8
