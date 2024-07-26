@@ -39,7 +39,7 @@ Calculate similarity between large number of mass spectra using a GPU. SimMS aim
 
 ![alt text](assets/visual_guide.png)
 
-Comparing large sets of mass spectra is can be done in parallel, since all scores can be calculated independent of other scores. By leveraging the large number of threads in a GPU, we created a GPU program (kernel) that calculates a 4096 x 4096 similarity matrix in a fraction of a second. By iteratvely calculating similarities for batches of spectra, SimMS can quickly process datasets much larger than the GPU memory. For details, visit the [preprint](https://www.biorxiv.org/content/biorxiv/early/2024/07/25/2024.07.24.605006.full.pdf).
+Comparing large sets of mass spectra can be done in parallel, since scores can be calculated independent of the other scores. By leveraging a large number of threads in a GPU, we created a GPU program (kernel) that calculates a 4096 x 4096 similarity matrix in a fraction of a second. By iteratvely calculating similarities for batches of spectra, SimMS can quickly process datasets much larger than the GPU memory. For details, visit the [preprint](https://www.biorxiv.org/content/biorxiv/early/2024/07/25/2024.07.24.605006.full.pdf).
 
 # Quickstart
 
