@@ -27,7 +27,7 @@
 </table>
 
 Calculate similarity between large number of mass spectra using a GPU. SimMS aims to provide very fast replacements for commonly used similarity functions in [matchms](https://github.com/matchms/matchms/).
-
+`
 <div style='text-align:center'>
   
   ![img](./assets/perf_speedup.svg)
@@ -42,6 +42,17 @@ Calculate similarity between large number of mass spectra using a GPU. SimMS aim
 Comparing large sets of mass spectra can be done in parallel, since scores can be calculated independent of the other scores. By leveraging a large number of threads in a GPU, we created a GPU program (kernel) that calculates a 4096 x 4096 similarity matrix in a fraction of a second. By iteratvely calculating similarities for batches of spectra, SimMS can quickly process datasets much larger than the GPU memory. For details, visit the [preprint](https://www.biorxiv.org/content/biorxiv/early/2024/07/25/2024.07.24.605006.full.pdf).
 
 # Quickstart
+
+## Hardware
+
+Any GPU [supported](https://numba.pydata.org/numba-doc/dev/cuda/overview.html#requirements) by numba can be used. We tested a number of GPUs:
+
+- RTX 2070, used on local machine
+- T4 GPU, offered for free on Colab
+- RTX4090 GPU, offered on vast.ai
+- Any A100 GPU, offered on vast.ai
+
+The `pytorch/pytorch:2.2.1-cuda12.1-cudnn8-devel` docker [image](https://hub.docker.com/layers/pytorch/pytorch/2.2.1-cuda12.1-cudnn8-devel/images/sha256-42204bca460bb77cbd524577618e1723ad474e5d77cc51f94037fffbc2c88c6f?context=explore) was used for development and testing. 
 
 ## Install
 ```bash
