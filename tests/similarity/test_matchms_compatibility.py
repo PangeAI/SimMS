@@ -1,7 +1,6 @@
 from typing import List
 import numpy as np
 import pytest
-from joblib import Memory
 from matchms import Scores, Spectrum, calculate_scores
 from matchms.similarity import (
     BaseSimilarity,
@@ -15,13 +14,12 @@ from simms.similarity import (
     CudaModifiedCosine,
 )
 from simms.utils import get_correct_scores
-from ..builder_Spectrum import SpectrumBuilder
 
 
 def equality_function(prefix: str):
     def equality(scores: Scores, scores_cu: Scores):
-        score = scores[f"score"]
-        matches = scores[f"matches"]
+        score = scores["score"]
+        matches = scores["matches"]
 
         score_cu = scores_cu[f"Cuda{prefix}_score"]
         matches_cu = scores_cu[f"Cuda{prefix}_matches"]
@@ -29,10 +27,10 @@ def equality_function(prefix: str):
 
         # We allow only overflowed values to be different (don't count toward acc)
         acc = np.isclose(matches * not_ovfl, matches_cu * not_ovfl, equal_nan=True)
-        assert acc.mean() >= .99
+        assert acc.mean() >= 0.99
 
         acc = np.isclose(score * not_ovfl, score_cu * not_ovfl, equal_nan=True)
-        assert acc.mean() >= .99
+        assert acc.mean() >= 0.99
 
         # We allow only few overflows
         assert not_ovfl.mean() >= 0.99
@@ -45,13 +43,19 @@ def equality_function_fingerprint(
     scores_cu: Scores,
 ):
     acc = np.isclose(scores, scores_cu, equal_nan=True)
-    assert acc.mean() >= .99
+    assert acc.mean() >= 0.99
 
 
 @pytest.mark.parametrize(
     "SimilarityClass, args, CudaSimilarityClass, cu_args, equality_function",
     [
-        (CosineGreedy, dict(), CudaCosineGreedy, dict(), equality_function("CosineGreedy")),
+        (
+            CosineGreedy,
+            dict(),
+            CudaCosineGreedy,
+            dict(),
+            equality_function("CosineGreedy"),
+        ),
         (
             ModifiedCosine,
             dict(),
@@ -61,23 +65,35 @@ def equality_function_fingerprint(
         ),
         (
             FingerprintSimilarity,
-            dict(similarity_measure="jaccard",),
+            dict(
+                similarity_measure="jaccard",
+            ),
             CudaFingerprintSimilarity,
-            dict(similarity_measure="jaccard",),
+            dict(
+                similarity_measure="jaccard",
+            ),
             equality_function_fingerprint,
         ),
         (
             FingerprintSimilarity,
-            dict(similarity_measure="cosine",),
+            dict(
+                similarity_measure="cosine",
+            ),
             CudaFingerprintSimilarity,
-            dict(similarity_measure="cosine",),
+            dict(
+                similarity_measure="cosine",
+            ),
             equality_function_fingerprint,
         ),
         (
             FingerprintSimilarity,
-            dict(similarity_measure="dice",),
+            dict(
+                similarity_measure="dice",
+            ),
             CudaFingerprintSimilarity,
-            dict(similarity_measure="cosine",),
+            dict(
+                similarity_measure="dice",
+            ),
             equality_function_fingerprint,
         ),
     ],
@@ -96,7 +112,9 @@ def test_compatibility(
         references=references, queries=queries, similarity_class=SimilarityClass, **args
     )
 
-    cuda_kernel = CudaSimilarityClass(**cu_args, batch_size=max(len(references), len(queries)))
+    cuda_kernel = CudaSimilarityClass(
+        **cu_args, batch_size=max(len(references), len(queries))
+    )
     scores_cu = calculate_scores(
         references=references,
         queries=queries,
