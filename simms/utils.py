@@ -1,16 +1,11 @@
-import contextlib
-import io
-import json
 import logging
+import os
 import shutil
-import sys
 import time
-import warnings
-from itertools import product
 from pathlib import Path
-from typing import Iterable, List, Literal, Optional, Type
+from typing import Iterable, Literal, Optional, Type
 import numpy as np
-import pandas as pd
+import torch
 from joblib import Memory
 from matchms import Spectrum
 from matchms.filtering import (
@@ -21,8 +16,6 @@ from matchms.filtering import (
     select_by_relative_intensity,
 )
 from matchms.similarity.BaseSimilarity import BaseSimilarity
-from numba import cuda
-from tqdm import tqdm
 
 
 cache = Memory(
@@ -154,3 +147,14 @@ def get_correct_scores(
     we cache the results on the disk and read them back if everything matches (class, args, all spectra involved).
     """
     return similarity_class(**similarity_parameters).matrix(references, queries)
+
+
+def get_device() -> str:
+    """
+    Return device 'cpu' or 'cuda' if available.
+    """
+    if (
+        os.getenv("NUMBA_ENABLE_CUDASIM") == "1"
+    ):  # Used for testing the kernel then CUDA isn't available
+        return "cpu"
+    return "cuda" if torch.cuda.is_available() else "cpu"

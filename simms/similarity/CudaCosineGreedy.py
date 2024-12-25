@@ -1,6 +1,5 @@
 import warnings
 from itertools import product
-from pathlib import Path
 from typing import List, Literal, Union
 import numpy as np
 import torch
@@ -9,7 +8,7 @@ from matchms.similarity.BaseSimilarity import BaseSimilarity
 from numba import cuda
 from sparsestack import StackedSparseArray
 from tqdm import tqdm
-from ..utils import argbatch
+from ..utils import argbatch, get_device
 from .spectrum_similarity_functions import cosine_kernel
 
 
@@ -79,7 +78,7 @@ class CudaCosineGreedy(BaseSimilarity):
         self.match_limit = match_limit
         self.verbose = verbose
         self.n_max_peaks = n_max_peaks
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = get_device()
 
         assert 0 <= sparse_threshold <= 1, "Sparse threshold has to be greather than 0."
 
