@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Iterable, Literal, Optional, Type
 import numpy as np
 import torch
-from joblib import Memory
 from matchms import Spectrum
 from matchms.filtering import (
     normalize_intensities,
@@ -18,10 +17,20 @@ from matchms.filtering import (
 from matchms.similarity.BaseSimilarity import BaseSimilarity
 
 
-cache = Memory(
-    "cache",
-    verbose=0,
-).cache
+try:
+    from joblib import Memory
+
+    cache = Memory(
+        "cache",
+        verbose=0,
+    ).cache
+except ImportError:
+
+    def nop(fun):
+        return fun
+
+    cache = nop
+
 logger = logging.getLogger("simms")
 
 
