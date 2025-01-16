@@ -75,12 +75,12 @@ addopts = "--profile=black"
 
 [tool.pytest.ini_options]
 pythonpath = [
-    "."
+    ".",
 ]
 addopts = "--doctest-modules"
 testpaths = [
-    "tests",
-    "integration-tests",
+    "./simms",
+    "./tests",
 ]
 markers = [
     "github_ci: marks tests as lightweight-enough to run on a CPU as a github CI",
