@@ -1,15 +1,11 @@
 from typing import Type
 import numpy as np
 import pytest
-from joblib import Memory
 from matchms.filtering import reduce_to_number_of_peaks
 from matchms.similarity import CosineGreedy, ModifiedCosine
 from matchms.similarity.BaseSimilarity import BaseSimilarity
 from sparsestack import StackedSparseArray
 from simms.similarity import CudaCosineGreedy, CudaModifiedCosine
-
-
-memory = Memory("cache", verbose=False)
 
 
 def trimmed_spectra(gnps, n_max_peaks):
