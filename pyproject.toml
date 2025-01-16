@@ -1,23 +1,20 @@
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.poetry]
+[project]
 name = "simms"
 version = "0.0.1"
 description = "Faster Similarity for Mass Spec on GPU"
-authors = ["Tornike Onoprishvili <tornikeonoprishvili@gmail.com>"]
-
-license = "MIT"
-readme = "README.md"
-repository = "https://github.com/PangeAI/simms"
-keywords = [
-    "similarity measures",
-    "mass spectrometry",
-    "fuzzy matching",
-    "fuzzy search"
+authors = [
+    {name="Tornike Onoprishvili", email="tornikeonoprishvili@gmail.com"}
 ]
-
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.8,<3.13"
+dependencies = [
+    "matchms>=0.24",
+    "torch~=2",
+    "tqdm~=4.66.4",
+    "joblib~=1.4.2",
+    "pooch~=1.8.2",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Education",
@@ -26,23 +23,35 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9"
+]
+keywords = [
+    "similarity measures",
+    "mass spectrometry",
+    "fuzzy matching",
+    "fuzzy search",
+    "CUDA",
 ]
 
-[tool.poetry.dependencies]
-python = ">=3.8"
-matchms = ">=0.24.0"
-torch = "^2.2.0"
-tqdm = "^4.65.0"
-joblib = "^1.3.2"
-pooch = "^1.8.1"
+[project.urls]
+homepage = "https://github.com/PangeAI/simms"
+repository = "https://github.com/PangeAI/simms"
+"Bug Tracker" = "https://github.com/PangeAI/simms/issues"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+package-mode = true
+
+[tool.poetry.group.docs]
+optional = true
 
 [tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
 decorator = "^5.1.1"
 isort = "^5.12.0"
 pylint = "^2.17.5"
-prospector = {extras = ["with-pyroma"], version = "^1.10.2"}
-pytest = "^7.4.0"
 tbb = "^2021.12.0"
 pytest-cov = "^4.1.0"
 pytest-benchmark = {extras=["histogram"], version="^4.0.0"}
@@ -50,7 +59,6 @@ yapf = "^0.40.1"
 testfixtures = "^7.1.0"
 twine = "^4.0.2"
 black = "^23.7.0"
-poetry-bumpversion = "^0.3.1"
 
 [tool.poetry.group.docs.dependencies]
 sphinxcontrib-apidoc = "^0.3.0"
