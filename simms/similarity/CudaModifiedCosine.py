@@ -50,6 +50,21 @@ class CudaModifiedCosine(BaseSimilarity):
     for further details.
 
     This implementation is meant to replicate outputs of `matchms.similarity.ModifiedCosine`.
+
+    For example:
+    >>> import numpy as np
+    >>> from matchms import Spectrum
+    >>> from simms.similarity import CudaModifiedCosine
+    >>> spectrum_1 = Spectrum(mz=np.array([100, 150, 200.]),
+    ...                         intensities=np.array([0.7, 0.2, 0.1]),
+    ...                         metadata={"precursor_mz": 100.0})
+    >>> spectrum_2 = Spectrum(mz=np.array([104.9, 140, 190.]),
+    ...                         intensities=np.array([0.4, 0.2, 0.1]),
+    ...                         metadata={"precursor_mz": 105.0})
+    >>> modified_cosine = CudaModifiedCosine(tolerance=0.2)
+    >>> score = modified_cosine.pair(spectrum_1, spectrum_2)
+    >>> print(f"Modified cosine score is {score['score']:.2f} with {score['matches']} matched peaks")
+    Modified cosine score is 0.83 with 1 matched peaks
     """
 
     score_datatype = [

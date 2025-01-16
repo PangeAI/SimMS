@@ -122,7 +122,7 @@ def download(
     Downloads a set of sample spectra files from https://github.com/PangeAI/simms/releases/tag/samples-0.1
     Downloaded files are cached, and not re-downloaded after the initial call.
     """
-    import pooch
+    import pooch  # Import here, since we want fewer runtime dependencies - this is for development only
 
     potential_local_file = Path(f"data/{name}")
     if potential_local_file.exists():

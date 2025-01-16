@@ -21,12 +21,14 @@ class CudaCosineGreedy(BaseSimilarity):
 
     This implementation is meant to replicate outputs of `matchms.similarity.CosineGreedy`.
 
+    For example:
+
     >>> import numpy as np
     >>> from matchms import Spectrum
     >>> from simms.similarity import CudaCosineGreedy
     >>> reference = Spectrum(mz=np.array([100, 150, 200.]), intensities=np.array([0.7, 0.2, 0.1]))
     >>> query = Spectrum(mz=np.array([100, 140, 190.]), intensities=np.array([0.4, 0.2, 0.1]))
-    >>> cosine_greedy = CudaCosineGreedy(tolerance=0.2) # Use factory to construct a similarity function
+    >>> cosine_greedy = CudaCosineGreedy(tolerance=0.2)
     >>> score = cosine_greedy.pair(reference, query)
     >>> print(f"Cosine score is {score['score']:.2f} with {score['matches']} matched peaks")
     Cosine score is 0.83 with 1 matched peaks
@@ -179,7 +181,7 @@ class CudaCosineGreedy(BaseSimilarity):
 
     def pair(self, reference: Spectrum, query: Spectrum) -> float:
         """
-        Do not use - it is very inefficient, and used for testing purposes only.
+        Do not use, unless testing. GPUs work best with a lot of data at the same time.
         Calculates the cosine similarity score between a reference and a query spectrum.
 
         Parameters:

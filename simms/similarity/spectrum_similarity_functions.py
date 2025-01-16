@@ -89,6 +89,33 @@ def cosine_kernel(
     --------
     callable
         CUDA kernel function for calculating cosine similarity scores.
+
+    For example:
+
+    >>> from simms.similarity.spectrum_similarity_functions import cosine_kernel
+    >>> from numba import cuda
+    >>> import numpy as np
+    >>> batch_size, n_max_peaks = 2, 4
+    >>> kernel = cosine_kernel(tolerance=0.1, n_max_peaks=n_max_peaks, batch_size=batch_size)
+    >>> rspec = cuda.to_device(np.array([
+    ...    [ [1., 10., 100., 200.,],  # mz values
+    ...      [2., 20., 200., 400.,], ],
+    ...    [ [1.,  1.,   1.,   1.,], # Intensities
+    ...      [1.,  1.,   1.,   1.,], ]
+    ... ], dtype=np.float32))
+    >>> qspec = rspec # symmetric
+    >>> metadata = cuda.to_device(np.array([
+    ...   [ 4., 4., ], # lengths of reference spectra
+    ...   [ 4., 4., ], # lengths of query spectra
+    ...   [ 2., 2., ], # norms of reference spectra
+    ...   [ 2., 2., ], # norms of query spectra
+    ... ], dtype=np.float32))
+    >>> out = cuda.to_device(np.zeros((3, batch_size, batch_size), dtype=np.float32))
+    >>> kernel(rspec, qspec, metadata, out)
+    >>> scores, matches, overflows = out.copy_to_host()
+    >>> print(scores)
+    [[1.   0.25]
+     [0.25 1.  ]]
     """
 
     if is_symmetric:
