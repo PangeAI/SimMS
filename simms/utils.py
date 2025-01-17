@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Iterable, Literal, Optional, Type
 import numpy as np
 import torch
+from pathlib import Path
+import requests
+from typing import Literal
 from matchms import Spectrum
 from matchms.filtering import (
     normalize_intensities,
@@ -15,7 +18,6 @@ from matchms.filtering import (
     select_by_relative_intensity,
 )
 from matchms.similarity.BaseSimilarity import BaseSimilarity
-
 
 try:
     from joblib import Memory
@@ -103,6 +105,7 @@ def process_spectrum(spectrum: Spectrum) -> Optional[Spectrum]:
     return spectrum
 
 
+
 def download(
     name: Literal[
         "ALL_GNPS.mgf",
@@ -122,17 +125,28 @@ def download(
     Downloads a set of sample spectra files from https://github.com/PangeAI/simms/releases/tag/samples-0.1
     Downloaded files are cached, and not re-downloaded after the initial call.
     """
-    import pooch  # Import here, since we want fewer runtime dependencies - this is for development only
+    # Define the local file path
+    local_dir = Path("data/downloads")
+    local_dir.mkdir(parents=True, exist_ok=True)
+    local_file = local_dir / name
 
-    potential_local_file = Path(f"data/{name}")
-    if potential_local_file.exists():
-        return str(potential_local_file)
+    # Check if the file already exists locally
+    if local_file.exists():
+        return str(local_file)
+
+    # URL for downloading the file
+    url = f"https://github.com/PangeAI/simms/releases/download/sample-files/{name}"
+
+    # Download the file using requests
+    response = requests.get(url, stream=True)
+    if response.status_code == 200:
+        with open(local_file, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:  # Filter out keep-alive new chunks
+                    f.write(chunk)
+        return str(local_file)
     else:
-        return pooch.retrieve(
-            url=f"https://github.com/PangeAI/simms/releases/download/sample-files/{name}",
-            known_hash=None,
-            progressbar=True,
-        )
+        raise Exception(f"Failed to download file from {url}. HTTP status code: {response.status_code}")
 
 
 class Timer:
