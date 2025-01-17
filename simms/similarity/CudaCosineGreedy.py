@@ -1,6 +1,5 @@
 import warnings
 from itertools import product
-from pathlib import Path
 from typing import List, Literal, Union
 import numpy as np
 import torch
@@ -9,7 +8,7 @@ from matchms.similarity.BaseSimilarity import BaseSimilarity
 from numba import cuda
 from sparsestack import StackedSparseArray
 from tqdm import tqdm
-from ..utils import argbatch
+from ..utils import argbatch, get_device
 from .spectrum_similarity_functions import cosine_kernel
 
 
@@ -21,6 +20,18 @@ class CudaCosineGreedy(BaseSimilarity):
     It provides a 'greedy' solution for the peak assignment problem, aimed at faster performance.
 
     This implementation is meant to replicate outputs of `matchms.similarity.CosineGreedy`.
+
+    For example:
+
+    >>> import numpy as np
+    >>> from matchms import Spectrum
+    >>> from simms.similarity import CudaCosineGreedy
+    >>> reference = Spectrum(mz=np.array([100, 150, 200.]), intensities=np.array([0.7, 0.2, 0.1]))
+    >>> query = Spectrum(mz=np.array([100, 140, 190.]), intensities=np.array([0.4, 0.2, 0.1]))
+    >>> cosine_greedy = CudaCosineGreedy(tolerance=0.2)
+    >>> score = cosine_greedy.pair(reference, query)
+    >>> print(f"Cosine score is {score['score']:.2f} with {score['matches']} matched peaks")
+    Cosine score is 0.83 with 1 matched peaks
     """
 
     score_datatype = [
@@ -79,7 +90,7 @@ class CudaCosineGreedy(BaseSimilarity):
         self.match_limit = match_limit
         self.verbose = verbose
         self.n_max_peaks = n_max_peaks
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = get_device()
 
         assert 0 <= sparse_threshold <= 1, "Sparse threshold has to be greather than 0."
 
@@ -170,7 +181,7 @@ class CudaCosineGreedy(BaseSimilarity):
 
     def pair(self, reference: Spectrum, query: Spectrum) -> float:
         """
-        Do not use - it is very inefficient, and used for testing purposes only.
+        Do not use, unless testing. GPUs work best with a lot of data at the same time.
         Calculates the cosine similarity score between a reference and a query spectrum.
 
         Parameters:

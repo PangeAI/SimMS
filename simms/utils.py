@@ -1,17 +1,12 @@
-import contextlib
-import io
-import json
 import logging
+import os
 import shutil
-import sys
 import time
-import warnings
-from itertools import product
 from pathlib import Path
-from typing import Iterable, List, Literal, Optional, Type
+from typing import Iterable, Literal, Optional, Type
 import numpy as np
-import pandas as pd
-from joblib import Memory
+import requests
+import torch
 from matchms import Spectrum
 from matchms.filtering import (
     normalize_intensities,
@@ -21,14 +16,22 @@ from matchms.filtering import (
     select_by_relative_intensity,
 )
 from matchms.similarity.BaseSimilarity import BaseSimilarity
-from numba import cuda
-from tqdm import tqdm
 
 
-cache = Memory(
-    "cache",
-    verbose=0,
-).cache
+try:
+    from joblib import Memory
+
+    cache = Memory(
+        "cache",
+        verbose=0,
+    ).cache
+except ImportError:
+
+    def nop(fun):
+        return fun
+
+    cache = nop
+
 logger = logging.getLogger("simms")
 
 
@@ -120,16 +123,29 @@ def download(
     Downloads a set of sample spectra files from https://github.com/PangeAI/simms/releases/tag/samples-0.1
     Downloaded files are cached, and not re-downloaded after the initial call.
     """
-    import pooch
+    # Define the local file path
+    local_dir = Path("data/downloads")
+    local_dir.mkdir(parents=True, exist_ok=True)
+    local_file = local_dir / name
 
-    potential_local_file = Path(f"data/{name}")
-    if potential_local_file.exists():
-        return str(potential_local_file)
+    # Check if the file already exists locally
+    if local_file.exists():
+        return str(local_file)
+
+    # URL for downloading the file
+    url = f"https://github.com/PangeAI/simms/releases/download/sample-files/{name}"
+
+    # Download the file using requests
+    response = requests.get(url, stream=True)
+    if response.status_code == 200:
+        with open(local_file, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:  # Filter out keep-alive new chunks
+                    f.write(chunk)
+        return str(local_file)
     else:
-        return pooch.retrieve(
-            url=f"https://github.com/PangeAI/simms/releases/download/sample-files/{name}",
-            known_hash=None,
-            progressbar=True,
+        raise Exception(
+            f"Failed to download file from {url}. HTTP status code: {response.status_code}"
         )
 
 
@@ -154,3 +170,14 @@ def get_correct_scores(
     we cache the results on the disk and read them back if everything matches (class, args, all spectra involved).
     """
     return similarity_class(**similarity_parameters).matrix(references, queries)
+
+
+def get_device() -> str:
+    """
+    Return device 'cpu' or 'cuda' if available.
+    """
+    if (
+        os.getenv("NUMBA_ENABLE_CUDASIM") == "1"
+    ):  # Used for testing the kernel then CUDA isn't available
+        return "cpu"
+    return "cuda" if torch.cuda.is_available() else "cpu"

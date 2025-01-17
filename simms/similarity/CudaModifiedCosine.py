@@ -1,7 +1,6 @@
 import logging
 import warnings
 from itertools import product
-from pathlib import Path
 from typing import List, Literal, Union
 import numpy as np
 import torch
@@ -11,7 +10,7 @@ from matchms.similarity.BaseSimilarity import BaseSimilarity
 from numba import cuda
 from sparsestack import StackedSparseArray
 from tqdm import tqdm
-from ..utils import argbatch
+from ..utils import argbatch, get_device
 from .spectrum_similarity_functions import cosine_kernel
 
 
@@ -51,6 +50,21 @@ class CudaModifiedCosine(BaseSimilarity):
     for further details.
 
     This implementation is meant to replicate outputs of `matchms.similarity.ModifiedCosine`.
+
+    For example:
+    >>> import numpy as np
+    >>> from matchms import Spectrum
+    >>> from simms.similarity import CudaModifiedCosine
+    >>> spectrum_1 = Spectrum(mz=np.array([100, 150, 200.]),
+    ...                         intensities=np.array([0.7, 0.2, 0.1]),
+    ...                         metadata={"precursor_mz": 100.0})
+    >>> spectrum_2 = Spectrum(mz=np.array([104.9, 140, 190.]),
+    ...                         intensities=np.array([0.4, 0.2, 0.1]),
+    ...                         metadata={"precursor_mz": 105.0})
+    >>> modified_cosine = CudaModifiedCosine(tolerance=0.2)
+    >>> score = modified_cosine.pair(spectrum_1, spectrum_2)
+    >>> print(f"Modified cosine score is {score['score']:.2f} with {score['matches']} matched peaks")
+    Modified cosine score is 0.83 with 1 matched peaks
     """
 
     score_datatype = [
@@ -69,7 +83,7 @@ class CudaModifiedCosine(BaseSimilarity):
         match_limit: int = 2048,
         sparse_threshold: float = 0.75,
         verbose=False,
-        spectra_dtype: Literal['float32', 'float64'] = 'float64',
+        spectra_dtype: Literal["float32", "float64"] = "float64",
     ):
         """
         Initialize CudaModifiedCosine with specified parameters.
@@ -109,12 +123,12 @@ class CudaModifiedCosine(BaseSimilarity):
         self.verbose = verbose
         self.n_max_peaks = n_max_peaks
 
-        assert (0 <= sparse_threshold <= 1), "Sparse threshold has to be greather than 0."
+        assert 0 <= sparse_threshold <= 1, "Sparse threshold has to be greather than 0."
 
         self.sparse_threshold = sparse_threshold
         self.spectra_dtype = spectra_dtype
-        
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        self.device = get_device()
 
         # Compile kernel function
         self.kernel = cosine_kernel(
@@ -202,9 +216,9 @@ class CudaModifiedCosine(BaseSimilarity):
 
     def pair(self, reference: Spectrum, query: Spectrum) -> float:
         """
-        Do not use - it is very inefficient, and used for testing purposes only. 
+        Do not use - it is very inefficient, and used for testing purposes only.
         Calculates the modified cosine similarity score between a reference and a query spectrum.
-        
+
         Parameters:
         -----------
         reference : Spectrum
@@ -229,7 +243,7 @@ class CudaModifiedCosine(BaseSimilarity):
     ) -> Union[np.ndarray, StackedSparseArray]:
         """
         Calculate a matrix of similarity scores between reference and query spectra.
-        
+
         Parameters:
         -----------
         references : List[Spectrum]
@@ -245,7 +259,7 @@ class CudaModifiedCosine(BaseSimilarity):
         --------
         Score : Union[np.ndarray, StackedSparseArray]
             Matrix of similarity scores between reference and query spectra.
-            Type of Score depends on on `array_type` argument, with "sparse" array_type 
+            Type of Score depends on on `array_type` argument, with "sparse" array_type
             returning a `sparsestack.StackedSparseArray`
         """
         # Warn if is_symmetric is passed
@@ -282,8 +296,12 @@ class CudaModifiedCosine(BaseSimilarity):
 
                 # Create tensor for spectrum lengths
                 # Tensor holding lengths and norms
-                dtype_ = torch.float32 if self.spectra_dtype == 'float32' else torch.float64
-                metadata = torch.zeros(6, self.batch_size, dtype=dtype_, device=self.device)
+                dtype_ = (
+                    torch.float32 if self.spectra_dtype == "float32" else torch.float64
+                )
+                metadata = torch.zeros(
+                    6, self.batch_size, dtype=dtype_, device=self.device
+                )
 
                 # Convert spectra to tensors and move to device
                 rspec = torch.from_numpy(rspec).to(self.device)  # 2, R, N
@@ -314,12 +332,16 @@ class CudaModifiedCosine(BaseSimilarity):
                 )  # Q
 
                 # Load all spectra metainformation into one tensor
-                metadata[0, :len(rlen)] = torch.from_numpy(rlen).to(self.device) # Lengths
-                metadata[1, :len(qlen)] = torch.from_numpy(qlen).to(self.device)
-                metadata[2, :len(rnorm)] = rnorm # Norms
-                metadata[3, :len(qnorm)] = qnorm
-                metadata[4, :len(rpmz)] = torch.from_numpy(rpmz).to(self.device) # Precursor m/z
-                metadata[5, :len(qpmz)] = torch.from_numpy(qpmz).to(self.device)
+                metadata[0, : len(rlen)] = torch.from_numpy(rlen).to(
+                    self.device
+                )  # Lengths
+                metadata[1, : len(qlen)] = torch.from_numpy(qlen).to(self.device)
+                metadata[2, : len(rnorm)] = rnorm  # Norms
+                metadata[3, : len(qnorm)] = qnorm
+                metadata[4, : len(rpmz)] = torch.from_numpy(rpmz).to(
+                    self.device
+                )  # Precursor m/z
+                metadata[5, : len(qpmz)] = torch.from_numpy(qpmz).to(self.device)
 
                 # Initialize output tensor
                 out = torch.empty(
@@ -390,11 +412,14 @@ class CudaModifiedCosine(BaseSimilarity):
                     print(len(r), r, r.max(), r.min())
                     print(len(q), q, q.max(), q.min())
                     sp.add_sparse_data(
-                        r, q,
+                        r,
+                        q,
                         np.rec.fromarrays(
-                            arrayList=[np.concatenate(s), 
-                                       np.concatenate(m), 
-                                       np.concatenate(o)],
+                            arrayList=[
+                                np.concatenate(s),
+                                np.concatenate(m),
+                                np.concatenate(o),
+                            ],
                             names=["score", "matches", "overflow"],
                         ),
                         name="sparse",

@@ -1,7 +1,5 @@
 import os
-import warnings
 from contextlib import contextmanager
-from matchms.filtering.SpectrumProcessor import SpectrumProcessor
 from .__version__ import __version__
 
 

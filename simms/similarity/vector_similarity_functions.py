@@ -1,5 +1,7 @@
 import numpy as np
 import torch
+from simms.utils import get_device
+
 
 def jaccard_similarity_matrix(
     references: np.ndarray, queries: np.ndarray
@@ -22,8 +24,7 @@ def jaccard_similarity_matrix(
         Matrix of all-vs-all similarity scores. scores[i, j] will contain the score
         between the vectors references[i, :] and queries[j, :].
     """
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = get_device()
 
     # We know references and queries have same number of elements (bits)
     refs = (
@@ -60,8 +61,7 @@ def dice_similarity_matrix(references: np.ndarray, queries: np.ndarray) -> np.nd
         Matrix of all-vs-all similarity scores. scores[i, j] will contain the score
         between the vectors references[i, :] and queries[j, :].
     """
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = get_device()
     refs = torch.from_numpy(np.array(references)).to(device).float()  # Shape R, N
     ques = torch.from_numpy(np.array(queries)).to(device).float()  # Shape Q, N
 
@@ -91,8 +91,7 @@ def cosine_similarity_matrix(references: np.ndarray, queries: np.ndarray) -> np.
         Matrix of all-vs-all similarity scores. scores[i, j] will contain the score
         between the vectors references[i, :] and queries[j, :].
     """
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = get_device()
     refs = torch.from_numpy(np.array(references)).to(device).float()  # R,N
     ques = torch.from_numpy(np.array(queries)).to(device).float()  # Q,N
     score = refs @ ques.T  # R, Q

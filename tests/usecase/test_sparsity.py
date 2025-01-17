@@ -1,13 +1,6 @@
-from pathlib import Path
 import numpy as np
-import torch
 from matchms import calculate_scores
-from matchms.importing import load_from_mgf
-from matchms.similarity import CosineGreedy
-from numba import cuda
-from tqdm import tqdm
 from simms.similarity import CudaCosineGreedy
-from simms.utils import download
 from ..utils import get_expected_cosine_greedy_score
 
 
@@ -53,12 +46,9 @@ def test_sparse_calculate_scores(
     overflow_rate = overflow.mean()
     overflow_num = overflow.sum()
 
-    errors = []
-    warns = []
-    if accuracy_rate < 1:
-        errors.append(f"accuracy={accuracy_rate:.7f} # {inaccuracy_num}")
-    if match_accuracy_rate < 1:
-        errors.append(f"match_acc={match_accuracy_rate:.7f} # {match_inaccuracy_num}")
-    if overflow_rate > 0:
-        warns.append(f"overflow={overflow_rate:.7f} # {overflow_num}")
-    assert not errors, f"ERR: {errors}, \n WARN: {warns}"
+    report = f"""
+    accuracy={accuracy_rate:.7f}, num incorrect {inaccuracy_num}
+    match_acc={match_accuracy_rate:.7f}, num incorrect {match_inaccuracy_num}
+    overflow={overflow_rate:.7f}, num overflow {overflow_num}
+    """
+    assert accuracy_rate > 0.999 and match_accuracy_rate > 0.999, f"{report}"

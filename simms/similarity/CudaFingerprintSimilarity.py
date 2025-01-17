@@ -20,40 +20,30 @@ class CudaFingerprintSimilarity(BaseSimilarity):
 
     .. testcode::
 
-        import numpy as np
-        from matchms import calculate_scores
-        from matchms import Spectrum
-        from matchms.filtering import add_fingerprint
-        from matchms.similarity import FingerprintSimilarity
-
-        spectrum_1 = Spectrum(mz=np.array([], dtype="float"),
-                              intensities=np.array([], dtype="float"),
-                              metadata={"smiles": "CCC(C)C(C(=O)O)NC(=O)CCl"})
-
-        spectrum_2 = Spectrum(mz=np.array([], dtype="float"),
-                              intensities=np.array([], dtype="float"),
-                              metadata={"smiles": "CC(C)C(C(=O)O)NC(=O)CCl"})
-
-        spectrum_3 = Spectrum(mz=np.array([], dtype="float"),
-                              intensities=np.array([], dtype="float"),
-                              metadata={"smiles": "C(C(=O)O)(NC(=O)O)S"})
-
-        spectrums = [spectrum_1, spectrum_2, spectrum_3]
-        # Add fingerprints
-        spectrums = [add_fingerprint(x, nbits=256) for x in spectrums]
-
-        # Specify type and calculate similarities
-        similarity_measure = FingerprintSimilarity("jaccard")
-        scores = calculate_scores(spectrums, spectrums, similarity_measure)
-        print(np.round(scores.scores.to_array(), 3))
-
-    Should output
-
-    .. testoutput::
-
-        [[1.    0.878 0.415]
-         [0.878 1.    0.444]
-         [0.415 0.444 1.   ]]
+    >>> import numpy as np
+    >>> from matchms import calculate_scores
+    >>> from matchms import Spectrum
+    >>> from matchms.filtering import add_fingerprint
+    >>> from simms.similarity import CudaFingerprintSimilarity
+    >>> spectrum_1 = Spectrum(mz=np.array([], dtype="float"),
+    ...                       intensities=np.array([], dtype="float"),
+    ...                       metadata={"smiles": "CCC(C)C(C(=O)O)NC(=O)CCl"})
+    >>> spectrum_2 = Spectrum(mz=np.array([], dtype="float"),
+    ...                       intensities=np.array([], dtype="float"),
+    ...                       metadata={"smiles": "CC(C)C(C(=O)O)NC(=O)CCl"})
+    >>> spectrum_3 = Spectrum(mz=np.array([], dtype="float"),
+    ...                       intensities=np.array([], dtype="float"),
+    ...                       metadata={"smiles": "C(C(=O)O)(NC(=O)O)S"})
+    >>> spectrums = [spectrum_1, spectrum_2, spectrum_3]
+    >>> # Add fingerprints
+    >>> spectrums = [add_fingerprint(x, nbits=256) for x in spectrums]
+    >>> # Specify type and calculate similarities
+    >>> similarity_measure = CudaFingerprintSimilarity("jaccard")
+    >>> scores = calculate_scores(spectrums, spectrums, similarity_measure)
+    >>> print(np.round(scores.scores.to_array(), 3))
+    [[1.    0.878 0.415]
+     [0.878 1.    0.444]
+     [0.415 0.444 1.   ]]
 
     """
 
