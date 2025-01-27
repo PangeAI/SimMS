@@ -49,11 +49,13 @@ For details, visit the [preprint](https://www.biorxiv.org/content/biorxiv/early/
 ## Hardware
 
 Any GPU [supported](https://numba.pydata.org/numba-doc/dev/cuda/overview.html#requirements) by Numba can be used. We tested a number of GPUs:
-
+- GTX 1050 Ti, used on a local laptop
 - RTX 2070, used on a local machine
 - T4 GPU, offered for free on Colab
 - RTX 4090 GPU, offered on vast.ai
 - Any A100 GPU, offered on vast.ai
+
+Performance (comparisons/s) is proportional to the peak GPU bandwidth (GB/s).
 
 The `pytorch/pytorch:2.2.1-cuda12.1-cudnn8-devel` docker [image](https://hub.docker.com/layers/pytorch/pytorch/2.2.1-cuda12.1-cudnn8-devel/images/sha256-42204bca460bb77cbd524577618e1723ad474e5d77cc51f94037fffbc2c88c6f?context=explore) was used for development and testing. 
 
