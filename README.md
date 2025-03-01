@@ -159,16 +159,13 @@ ref_id, query_id, matches = scores_cu.data['sparse_matches']
 
 # Citing SimMS  
 
-If you want to cite SimMS in your research, you can use the following BibTeX entry:
-
 ```bibtex
-@article{Onoprishvili2024,
-	title = {SimMS: A GPU-Accelerated Cosine Similarity implementation for Tandem Mass Spectrometry},
-	author = {Onoprishvili, Tornike and Yuan, Jui-Hung and Petrov, Kamen and Ingalalli, Vijay and Khederlarian, Lila and Leuchtenmuller, Niklas and Chandra, Sona and Duarte, Aurelien and Bender, Andreas and Gloaguen, Yoann},
-	journal = {bioRxiv},
-	elocation-id = {2024.07.24.605006},
-	URL = {https://www.biorxiv.org/content/early/2024/07/25/2024.07.24.605006},
-	year = {2024},
-	doi = {10.1101/2024.07.24.605006}
+@article{onoprishvili2025simms,
+  author  = {Onoprishvili, Tornike and Yuan, Jui-Hung and Petrov, Kamen and Ingalalli, Vijay and Khederlarian, Lila and Leuchtenmuller, Niklas and Chandra, Sona and Duarte, Aurelien and Bender, Andreas and Gloaguen, Yoann},
+  title   = {SimMS: A GPU-Accelerated Cosine Similarity implementation for Tandem Mass Spectrometry},
+  journal = {Bioinformatics},
+  year    = {2025},
+  month   = {02},
+  doi     = {10.1093/bioinformatics/btaf081}
 }
 ```
