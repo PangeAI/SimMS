@@ -28,10 +28,10 @@ def jaccard_similarity_matrix(
 
     # We know references and queries have same number of elements (bits)
     refs = (
-        torch.from_numpy(np.array(references, copy=False)).to(device).float()
+        torch.from_numpy(np.asarray(references)).to(device).float()
     )  # Shape R, N
     ques = (
-        torch.from_numpy(np.array(queries, copy=False)).to(device).float()
+        torch.from_numpy(np.asarray(queries)).to(device).float()
     )  # Shape Q, N
 
     intersection = refs @ ques.T  # Shape R, Q, all intersection rows are summed
