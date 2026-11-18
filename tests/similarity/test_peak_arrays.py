@@ -77,6 +77,41 @@ def test_modified_cosine_peak_arrays_match_spectra():
     np.testing.assert_array_equal(got["matches"], expected["matches"])
 
 
+def test_modified_cosine_default_storage_keeps_edge_matches():
+    # A query peak just inside the tolerance in float64 that float32 rounding pushes outside it.
+    tolerance = 0.1
+    ref_mz, query_mz = next(
+        (r, r + tolerance - eps)
+        for r in 1000.0 + np.arange(200) * 1.3e-5
+        for eps in np.linspace(1e-7, 5e-5, 50)
+        if float(np.float32(r + tolerance - eps)) - float(np.float32(r)) > tolerance
+    )
+    reference = Spectrum(mz=np.array([ref_mz, 1100.0]), intensities=np.array([1.0, 0.5]), metadata={"precursor_mz": 1500.0})
+    query = Spectrum(mz=np.array([query_mz, 1100.0]), intensities=np.array([1.0, 0.5]), metadata={"precursor_mz": 1500.0})
+    similarity = CudaModifiedCosine(tolerance=tolerance, batch_size=4, n_max_peaks=4)
+    expected = similarity.matrix([reference], [query])
+    assert expected["matches"][0, 0] == 2
+    got = similarity.matrix(
+        PeakArrays.from_spectra([reference], with_precursor_mz=True),
+        PeakArrays.from_spectra([query], with_precursor_mz=True),
+    )
+    np.testing.assert_array_equal(got["matches"], expected["matches"])
+    np.testing.assert_allclose(got["score"], expected["score"], rtol=1e-12)
+    rounded = similarity.matrix(
+        PeakArrays.from_spectra([reference], with_precursor_mz=True, dtype=np.float32),
+        PeakArrays.from_spectra([query], with_precursor_mz=True, dtype=np.float32),
+    )
+    assert rounded["matches"][0, 0] == 1
+
+
+def test_from_peak_lists_stores_float64_by_default():
+    peaks = PeakArrays.from_peak_lists([np.array([100.0])], [np.array([1.0])], precursor_mz=[500.123456789])
+    assert peaks.mz.dtype == np.float64 and peaks.intensities.dtype == np.float64
+    assert peaks.precursor_mz.dtype == np.float64
+    small = PeakArrays.from_peak_lists([np.array([100.0])], [np.array([1.0])], precursor_mz=[500.123456789], dtype=np.float32)
+    assert small.mz.dtype == np.float32 and small.precursor_mz.dtype == np.float64
+
+
 def test_modified_cosine_needs_precursor_mz():
     spectra = random_spectra(3, np.random.default_rng(3))
     similarity = CudaModifiedCosine(batch_size=8, n_max_peaks=16)

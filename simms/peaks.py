@@ -89,11 +89,17 @@ class PeakArrays:
         intensities: Sequence[np.ndarray],
         precursor_mz: Optional[Sequence[float]] = None,
         n_max_peaks: Optional[int] = None,
-        dtype=np.float32,
+        dtype=np.float64,
     ) -> "PeakArrays":
         """Pad per-spectrum peak arrays (each in ascending m/z) into a ``PeakArrays``.
 
         With ``n_max_peaks``, each spectrum keeps its first ``n_max_peaks`` peaks.
+
+        ``dtype`` is the storage type of m/z and intensities. The float64 default keeps the values matchms
+        ``Spectrum`` objects hold, so both similarity classes give exactly the scores they give for ``Spectrum``
+        input. float32 halves the memory and is exact for ``CudaCosineGreedy``, which computes in float32, but
+        ``CudaModifiedCosine`` computes in float64 by default, and rounded m/z can flip matches that lie near the
+        tolerance. Precursor m/z is always stored as float64.
         """
         if len(mz) != len(intensities):
             raise ValueError("mz and intensities must hold the same number of spectra.")
@@ -111,11 +117,11 @@ class PeakArrays:
             mz=mz_out,
             intensities=int_out,
             lengths=lengths.astype(np.int32),
-            precursor_mz=None if precursor_mz is None else np.asarray(precursor_mz, dtype=dtype),
+            precursor_mz=None if precursor_mz is None else np.asarray(precursor_mz, dtype=np.float64),
         )
 
     @classmethod
-    def from_spectra(cls, spectra, n_max_peaks: Optional[int] = None, with_precursor_mz: bool = False, dtype=np.float32) -> "PeakArrays":
+    def from_spectra(cls, spectra, n_max_peaks: Optional[int] = None, with_precursor_mz: bool = False, dtype=np.float64) -> "PeakArrays":
         """Convert matchms ``Spectrum`` objects once, so that repeated ``matrix()`` calls skip the conversion."""
         precursor = None
         if with_precursor_mz:
