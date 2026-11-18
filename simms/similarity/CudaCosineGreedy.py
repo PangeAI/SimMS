@@ -8,6 +8,7 @@ from matchms.similarity.BaseSimilarity import BaseSimilarity
 from numba import cuda
 from sparsestack import StackedSparseArray
 from tqdm import tqdm
+from ..peaks import PeakArrays
 from ..utils import argbatch, get_device
 from .spectrum_similarity_functions import cosine_kernel
 
@@ -110,21 +111,25 @@ class CudaCosineGreedy(BaseSimilarity):
 
     def _spectra_peaks_to_tensor(
         self,
-        spectra: list,
+        spectra: Union[list, PeakArrays],
     ) -> tuple[np.ndarray, np.ndarray]:
         """
-        Convert list of Spectrum objects into numpy arrays.
+        Convert list of Spectrum objects, or a PeakArrays, into numpy arrays.
 
         Parameters:
         -----------
-        spectra : list of Spectrum
-            List of Spectrum objects.
+        spectra : list of Spectrum, or PeakArrays
+            List of Spectrum objects, or spectra as padded arrays.
 
         Returns:
         --------
         tuple of np.ndarray
             Tuple containing two numpy arrays: one for m/z values and one for intensities.
         """
+        if isinstance(spectra, PeakArrays):
+            width = self.n_max_peaks if self.n_max_peaks is not None else int(spectra.lengths.max(initial=1))
+            return spectra.to_width(width, dtype=np.float32)
+
         # Determine dynamic shape
         dynamic_shape = max(len(s.peaks) for s in spectra)
         if self.n_max_peaks is None:
@@ -201,31 +206,32 @@ class CudaCosineGreedy(BaseSimilarity):
 
     def matrix(
         self,
-        references: List[Spectrum],
-        queries: List[Spectrum],
-        array_type: Literal["numpy", "sparse"] = "numpy",
+        references: Union[List[Spectrum], PeakArrays],
+        queries: Union[List[Spectrum], PeakArrays],
+        array_type: Literal["numpy", "sparse", "torch"] = "numpy",
         is_symmetric: bool = False,
-    ) -> Union[np.ndarray, StackedSparseArray]:
+    ) -> Union[np.ndarray, StackedSparseArray, torch.Tensor]:
         """
         Calculate a matrix of similarity scores between reference and query spectra.
 
         Parameters:
         -----------
-        references : List[Spectrum]
-            List of reference Spectrum objects.
-        queries : List[Spectrum]
-            List of query Spectrum objects.
-        array_type : Literal["numpy", "sparse"], optional
-            Specify the output array type, by default "numpy".
+        references : List[Spectrum] or PeakArrays
+            Reference spectra: a list of Spectrum objects, or a `simms.peaks.PeakArrays`.
+        queries : List[Spectrum] or PeakArrays
+            Query spectra: a list of Spectrum objects, or a `simms.peaks.PeakArrays`.
+        array_type : Literal["numpy", "sparse", "torch"], optional
+            Specify the output array type, by default "numpy". "torch" returns the (3, R, Q) float32 tensor of
+            scores, matched peaks and overflow flags, left on the device, without copying it to the host.
         is_symmetric : bool, optional
             Unused. This unused argument is left is for compatibility reasons.
 
         Returns:
         --------
-        Score : Union[np.ndarray, StackedSparseArray]
+        Score : Union[np.ndarray, StackedSparseArray, torch.Tensor]
             Matrix of similarity scores between reference and query spectra.
             Type of Score depends on on `array_type` argument, with "sparse" array_type
-            returning a `sparsestack.StackedSparseArray`
+            returning a `sparsestack.StackedSparseArray` and "torch" a `torch.Tensor`
         """
         # Warn if is_symmetric is passed
         if is_symmetric:
@@ -235,14 +241,15 @@ class CudaCosineGreedy(BaseSimilarity):
         assert array_type in [
             "numpy",
             "sparse",
-        ], "Invalid array_type. Use 'numpy' or 'sparse'."
+            "torch",
+        ], "Invalid array_type. Use 'numpy', 'sparse' or 'torch'."
 
         # Initialize batched inputs
         batched_inputs = self._get_batches(references=references, queries=queries)
         R, Q = len(references), len(queries)
 
         # Initialize result variable based on array_type
-        if array_type == "numpy":
+        if array_type in ("numpy", "torch"):
             result = torch.empty(3, R, Q, dtype=torch.float32, device=self.device)
         elif array_type == "sparse":
             result = []
@@ -321,7 +328,7 @@ class CudaCosineGreedy(BaseSimilarity):
                 out = out[:, : len(rlen), : len(qlen)]
 
                 # Populate result based on array_type
-                if array_type == "numpy":
+                if array_type in ("numpy", "torch"):
                     result[:, rstart:rend, qstart:qend] = out
 
                 elif array_type == "sparse":
@@ -342,6 +349,8 @@ class CudaCosineGreedy(BaseSimilarity):
                         )
 
             # Return result based on array_type
+            if array_type == "torch":
+                return result
             if array_type == "numpy":
                 return np.rec.fromarrays(
                     result.cpu().numpy(),

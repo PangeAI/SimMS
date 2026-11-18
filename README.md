@@ -156,6 +156,24 @@ ref_id, query_id, scores = scores_cu.data['sparse_score']
 ref_id, query_id, matches = scores_cu.data['sparse_matches']
 ```
 
+### My spectra are already arrays (NumPy, Parquet, HDF5). Do I need matchms `Spectrum` objects?
+
+No. Pass a `PeakArrays`: padded m/z and intensity arrays plus the number of peaks per spectrum (and precursor m/z for `CudaModifiedCosine`). It skips creating `Spectrum` objects and converting them on every `matrix()` call, which adds up for millions of spectra. With `array_type="torch"`, the scores stay on the GPU as a `(3, R, Q)` tensor (score, matched peaks, overflow), for filtering there before anything is copied to the host.
+
+```py
+from simms import PeakArrays
+from simms.similarity import CudaCosineGreedy
+
+# mz_list, intensity_list: one array per spectrum, each in ascending m/z
+references = PeakArrays.from_peak_lists(mz_list, intensity_list, n_max_peaks=1024)
+queries = PeakArrays.from_peak_lists(query_mz_list, query_intensity_list, n_max_peaks=1024)
+
+scores = CudaCosineGreedy().matrix(references, queries, array_type="torch")
+best_score, best_reference = scores[0].max(dim=0)  # computed on the GPU
+```
+
+`PeakArrays.from_spectra(spectra)` converts `Spectrum` objects once, for reuse across many `matrix()` calls.
+
 
 # Citing SimMS  
 
