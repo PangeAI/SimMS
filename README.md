@@ -109,7 +109,7 @@ The **easiest way** to get started is to use the <a target="_blank" href="https:
 
 For local installations, we recommend using [`micromamba`](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html), it is much faster. 
 
-SimMS needs Python 3.10–3.13. Total size of install will be around 7-8GB (heaviest packages are `pytorch` and the CUDA libraries).
+SimMS needs Python 3.11–3.14. Total size of install will be around 7-8GB (heaviest packages are `pytorch` and the CUDA libraries).
 
 ```bash
 # Install torch (follow the official guide https://pytorch.org/get-started/locally/#start-locally)
