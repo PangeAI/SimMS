@@ -1,6 +1,7 @@
 import os
 from contextlib import contextmanager
 from .__version__ import __version__
+from .peaks import PeakArrays
 
 
 # Patch cuda.pinned and as_cuda_array before https://github.com/numba/numba/pull/9458 gets merged
@@ -27,5 +28,6 @@ __author__ = "SimMS developers community"
 __email__ = "tornikeonoprishvili@gmail.com"
 __all__ = [
     "__version__",
+    "PeakArrays",
     "similarity",
 ]
