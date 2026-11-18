@@ -140,7 +140,7 @@ class CudaCosineGreedy(BaseSimilarity):
         # Initialize arrays
         dtype = np.float32
         mz = np.zeros((len(spectra), n_max_peaks), dtype=dtype)
-        int = np.zeros((len(spectra), n_max_peaks), dtype=dtype)
+        intensities = np.zeros((len(spectra), n_max_peaks), dtype=dtype)
         spectra_lens = np.zeros(len(spectra), dtype=np.int32)
 
         # Populate arrays
@@ -148,11 +148,11 @@ class CudaCosineGreedy(BaseSimilarity):
             if s is not None:
                 spec_len = min(len(s.peaks), n_max_peaks)
                 mz[i, :spec_len] = s._peaks.mz[:spec_len]
-                int[i, :spec_len] = s._peaks.intensities[:spec_len]
+                intensities[i, :spec_len] = s._peaks.intensities[:spec_len]
                 spectra_lens[i] = spec_len
 
         # Stack arrays and return
-        stacked_spectra = np.stack([mz, int], axis=0)
+        stacked_spectra = np.stack([mz, intensities], axis=0)
         return stacked_spectra, spectra_lens
 
     def _get_batches(self, references, queries):

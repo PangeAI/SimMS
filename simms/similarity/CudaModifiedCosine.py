@@ -177,7 +177,7 @@ class CudaModifiedCosine(BaseSimilarity):
         # Initialize arrays
         dtype = self.spectra_dtype
         mz = np.zeros((len(spectra), n_max_peaks), dtype=dtype)
-        int_ = np.zeros((len(spectra), n_max_peaks), dtype=dtype)
+        intensities = np.zeros((len(spectra), n_max_peaks), dtype=dtype)
         spectra_lens = np.zeros(len(spectra), dtype=np.int32)
         spectra_precursor_mzs = np.zeros(len(spectra), dtype=dtype)
 
@@ -186,11 +186,11 @@ class CudaModifiedCosine(BaseSimilarity):
             if s is not None:
                 spec_len = min(len(s.peaks), n_max_peaks)
                 mz[i, :spec_len] = s._peaks.mz[:spec_len]
-                int_[i, :spec_len] = s._peaks.intensities[:spec_len]
+                intensities[i, :spec_len] = s._peaks.intensities[:spec_len]
                 spectra_lens[i] = spec_len
                 spectra_precursor_mzs[i] = get_valid_precursor_mz(s)
         # Stack arrays and return
-        stacked_spectra = np.stack([mz, int_], axis=0)
+        stacked_spectra = np.stack([mz, intensities], axis=0)
         return stacked_spectra, spectra_lens, spectra_precursor_mzs
 
     def _get_batches(self, references, queries):
