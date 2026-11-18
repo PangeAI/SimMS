@@ -69,7 +69,7 @@ pip install "simms[cu12] @ git+https://github.com/PangeAI/simms"
 
 The `cu12` / `cu13` extra installs the CUDA compiler pieces Numba needs (NVVM, libdevice) from pip, through [numba-cuda](https://github.com/NVIDIA/numba-cuda). Without an extra, Numba uses a CUDA toolkit installed on the system.
 
-The extra has to match the CUDA major version of your PyTorch build, which `python -c "import torch; print(torch.version.cuda)"` prints. Recent PyTorch wheels on PyPI are built for CUDA 13, so in a fresh environment `cu12` resolves to the newest PyTorch built for CUDA 12, and `cu13` to the newest PyTorch. If PyTorch is already installed, pick the extra that matches it, or pip may replace it.
+The extra has to match the CUDA major version of your PyTorch build, which `python -c "import torch; print(torch.version.cuda)"` prints. PyTorch wheels on PyPI are built for CUDA 12 up to 2.10 and for CUDA 13 from 2.11, so in a fresh environment `cu12` resolves to PyTorch 2.10 and `cu13` to the newest PyTorch. If PyTorch is already installed, pick the extra that matches it, or pip may replace it.
 
 ## Use with MatchMS
 

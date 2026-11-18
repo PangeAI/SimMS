@@ -42,8 +42,11 @@ keywords = [
 
 [project.optional-dependencies]
 # NVVM, libdevice and the CUDA runtime from pip wheels, instead of a system or conda CUDA toolkit.
-cu12 = ["numba-cuda[cu12]>=0.30"]
-cu13 = ["numba-cuda[cu13]>=0.30"]
+# cu12: cuda-core 1.3 refuses cuda-bindings < 12.9.8 at import, but PyTorch 2.10 (the last PyPI PyTorch built for
+# CUDA 12) pins cuda-bindings 12.9.4; numba-cuda doesn't cap cuda-core, so cap it here until that clash is resolved.
+cu12 = ["numba-cuda[cu12]>=0.30", "cuda-core<1.3"]
+# cu13: PyPI PyTorch is built for CUDA 13 from 2.11 on; without the floor, pip can settle on an older, CUDA 12 PyTorch.
+cu13 = ["numba-cuda[cu13]>=0.30", "torch>=2.11"]
 
 [project.urls]
 homepage = "https://github.com/PangeAI/simms"
