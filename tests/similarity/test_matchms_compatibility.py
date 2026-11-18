@@ -6,8 +6,11 @@ from matchms.similarity import (
     BaseSimilarity,
     CosineGreedy,
     FingerprintSimilarity,
-    ModifiedCosine,
 )
+try:
+    from matchms.similarity import ModifiedCosine
+except ImportError:  # matchms >= 0.34 renamed it
+    from matchms.similarity import ModifiedCosineGreedy as ModifiedCosine
 from simms.similarity import (
     CudaCosineGreedy,
     CudaFingerprintSimilarity,

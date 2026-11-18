@@ -63,8 +63,13 @@ The `pytorch/pytorch:2.2.1-cuda12.1-cudnn8-devel` docker [image](https://hub.doc
 
 ## Install
 ```bash
-pip install git+https://github.com/PangeAI/simms
+# Pick the extra matching your CUDA driver: cu12 or cu13
+pip install "simms[cu12] @ git+https://github.com/PangeAI/simms"
 ```
+
+The `cu12` / `cu13` extra installs the CUDA compiler pieces Numba needs (NVVM, libdevice) from pip, through [numba-cuda](https://github.com/NVIDIA/numba-cuda). Without an extra, Numba uses a CUDA toolkit installed on the system.
+
+The extra has to match the CUDA major version of your PyTorch build, which `python -c "import torch; print(torch.version.cuda)"` prints. PyTorch wheels on PyPI are built for CUDA 12 up to 2.10 and for CUDA 13 from 2.11, so in a fresh environment `cu12` resolves to PyTorch 2.10 and `cu13` to the newest PyTorch. If PyTorch is already installed, pick the extra that matches it, or pip may replace it.
 
 ## Use with MatchMS
 
@@ -106,29 +111,27 @@ The **easiest way** to get started is to use the <a target="_blank" href="https:
 
 For local installations, we recommend using [`micromamba`](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html), it is much faster. 
 
-Total size of install in a fresh conda environment will be around 7-8GB (heaviest packages are `pytorch`, and `cudatoolkit`).
+SimMS needs Python 3.11–3.14. Total size of install will be around 7-8GB (heaviest packages are `pytorch` and the CUDA libraries).
 
 ```bash
-# Install cudatoolkit
-conda install nvidia::cuda-toolkit -y
+# Install torch for your CUDA version (follow the official guide https://pytorch.org/get-started/locally/#start-locally)
+pip install torch
 
-# Install torch (follow the official guide https://pytorch.org/get-started/locally/#start-locally)
-conda install pytorch -c pytorch -c nvidia -y
-
-# Install numba (follow the offical guide: https://numba.pydata.org/numba-doc/latest/user/installing.html#installing-using-conda-on-x86-x86-64-power-platforms)
-conda install numba -y
-
-# Install this repository
-pip install git+https://github.com/PangeAI/simms
+# Install this repository, with the CUDA pieces for Numba from pip: the extra matching torch.version.cuda (cu12 or cu13)
+pip install "simms[cu13] @ git+https://github.com/PangeAI/simms"
 ```
+
+With conda, install `cuda-toolkit` and `numba-cuda` from conda-forge instead of using the extra.
 
 ## Run in docker
 
-The `pytorch/pytorch:2.2.1-cuda12.1-cudnn8-devel` has nearly everything you need. Once inside, do:
+The `pytorch/pytorch:2.4.1-cuda12.4-cudnn9-devel` image (Python 3.11) has nearly everything you need. Once inside, do:
 
 ```sh
-pip install git+https://github.com/PangeAI/simms
+pip install "simms[cu12] @ git+https://github.com/PangeAI/simms"
 ```
+
+Older images need care: `pytorch/pytorch:2.2.1-cuda12.1-cudnn8-devel` ships PyTorch built against NumPy 1, which current releases of SimMS's dependencies replace with NumPy 2.
 
 ## Run on vast.ai
 
