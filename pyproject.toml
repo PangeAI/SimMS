@@ -7,9 +7,13 @@ authors = [
 ]
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.8,<3.13"
+requires-python = ">=3.10,<3.14"
 dependencies = [
     "matchms>=0.24",
+    "numba>=0.61",
+    "numba-cuda>=0.30",
+    "numpy>=1.24",
+    "sparsestack>=0.5",
     "torch>=2.0.0",
     "tqdm>=4.66.4",
     "joblib>=1.4.0",
@@ -23,6 +27,10 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 keywords = [
     "similarity measures",
@@ -31,6 +39,11 @@ keywords = [
     "fuzzy search",
     "CUDA",
 ]
+
+[project.optional-dependencies]
+# NVVM, libdevice and the CUDA runtime from pip wheels, instead of a system or conda CUDA toolkit.
+cu12 = ["numba-cuda[cu12]>=0.30"]
+cu13 = ["numba-cuda[cu13]>=0.30"]
 
 [project.urls]
 homepage = "https://github.com/PangeAI/simms"

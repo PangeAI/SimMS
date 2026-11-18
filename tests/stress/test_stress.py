@@ -2,7 +2,11 @@ from typing import Type
 import numpy as np
 import pytest
 from matchms.filtering import reduce_to_number_of_peaks
-from matchms.similarity import CosineGreedy, ModifiedCosine
+from matchms.similarity import CosineGreedy
+try:
+    from matchms.similarity import ModifiedCosine
+except ImportError:  # matchms >= 0.34 renamed it
+    from matchms.similarity import ModifiedCosineGreedy as ModifiedCosine
 from matchms.similarity.BaseSimilarity import BaseSimilarity
 from sparsestack import StackedSparseArray
 from simms.similarity import CudaCosineGreedy, CudaModifiedCosine
